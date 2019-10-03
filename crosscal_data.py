@@ -15,20 +15,20 @@ parser.add_argument('--msdir_dir', dest='msdir_directory', metavar='<msdir direc
                     action='store', default='msdir', help='directory to store measurement sets')
 parser.add_argument('--bp', dest='bandpass_field', metavar='<bandpass field>',
                     help='Bandpass fields')
-parser.add_argument('--gc', dest='gain_field', metavar='<gain calibrator fields>',
+parser.add_argument('--gc', dest='gain_field', metavar='<gain calibrator fields>', default=[],
                     action="append", nargs="+",
                     help='Gain fields. This switch can be used multiple times for more than 1 field')
-parser.add_argument('--altcal', dest='alt_cal_field', metavar='<alternative calibrator fields>',
+parser.add_argument('--altcal', dest='alt_cal_field', metavar='<alternative calibrator fields>', default=[],
                     action="append", nargs="+",
                     help='Alternative calibrator. Phase corrections will be applied to this field for further '
                          'diagnostic or calibration procedures. This switch can be used multiple times for '
                          'more than 1 field. This field has no impact on target field calibration.')
-parser.add_argument('--tar', dest='target_field', metavar='<target fields>', type=str,
+parser.add_argument('--tar', dest='target_field', metavar='<target fields>', type=str, default=[],
                     action="append", nargs="+",
                     help='Target fields. This switch can be used multiple times for more than 1 field')
 parser.add_argument('--no_delay_with_gcal', dest='delay_with_gcal', action='store_false', default=True,
                     help='DON''t use gain calibrators for delay calibration')
-parser.add_argument('--flag_antenna', dest='flag_antenna', action='append',
+parser.add_argument('--flag_antenna', dest='flag_antenna', action='append', default=[],
                     help="Flag antenna. Can be specified more than once to flag more than one antenna.")
 parser.add_argument('--skip_prepdata', dest='skip_prepdata', action='store_true',
                     help="Skip prepdata")
@@ -49,12 +49,15 @@ parser.add_argument('--skip_final_split', dest='skip_final_split', action='store
 parser.add_argument('msprefix', metavar='<measurement set name prefix>',
                     help='Prefix of measurement set name as it appears relative to msdir. This must NOT be a '
                          'path prefix')
-parser.add_argument('--time_sol_interval', dest='time_sol_interval', default="2s",
+parser.add_argument('--time_sol_interval', dest='time_sol_interval', default="64s",
                     help="Time (gain) solutions interval")
 parser.add_argument('--freq_sol_interval', dest='freq_sol_interval', default="inf",
                     help="Frequency time-invariant solutions interval")
 parser.add_argument('--clip_delays', dest='clip_delays', default=30,
                     help="Clip delays above this absolute in nanoseconds")
+parser.add_argument('--cal_model', dest='cal_model', default='pks1934-638.lsm',
+                    help="Calibrator apparent sky model (tigger lsm format)")
+
 args = parser.parse_args()
 
 INPUT = args.input_directory
@@ -67,6 +70,7 @@ print "Directory '{0:s}' is used as msdir directory".format(MSDIR)
 print "Frequency invariant solution time interval: {0:s}".format(args.time_sol_interval)
 print "Time invariant solution frequency interval: {0:s}".format(args.freq_sol_interval)
 print "Will clip absolute delays over {0:d}ns".format(args.clip_delays)
+print "Will use '{}' as flux calibrator full sky model".format(args.cal_model)
 
 FLAGANT = [f[0] if isinstance(f, list) else f for f in args.flag_antenna]
 if len(FLAGANT) != 0:
@@ -89,7 +93,7 @@ if DO_USE_GAINCALIBRATOR_DELAY:
 else:
     print "Will *NOT* transfer rate calibraton from gain calibrator"
 
-PREFIX = "A1300"
+PREFIX = args.msprefix
 REFANT = "m037"
 
 print "Reference antenna {0:s} to be used throughout".format(REFANT)
@@ -252,7 +256,7 @@ def rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy="mk
 
 def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, applyonly=False):
     recipe.add("cab/simulator", "predict_fluxcalibrator_%s" % label, {
-           "skymodel": "pks1934-638.lsm", # we are using 1934-638 as flux scale reference
+           "skymodel": args.cal_model, # we are using 1934-638 as flux scale reference
            "msname": ZEROGEN_DATA,
            "threads": 24,
            "mode": "simulate",
