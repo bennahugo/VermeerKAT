@@ -1,6 +1,13 @@
 # VermeerKAT pipeline
+
 (C) SARAO, Radio Astronomy Research Group
+
 (C) Benjamin Hugo
+
+![](https://upload.wikimedia.org/wikipedia/commons/0/0e/Johannes_Vermeer_-_The_Astronomer_-_WGA24685.jpg)
+<p align="center">
+ <i> The Astronomer, by Vermeer </i>
+</p>
 
 This is the temporary home of the VermeerKAT pipeline. The goal of this project is two-fold
  - to combine the various transfer, polarization and self calibration pipelines that I have laying around and implemented in the SKA-SA fleeting pol pipeline.
