@@ -3,6 +3,7 @@ import npyscreen
 import os
 import types
 import curses
+import pickle
 from vermeerkat.plugins.BAT.viewcontrollers.bat_theme import bat_theme
 from vermeerkat.plugins.BAT.viewcontrollers.option_editor import options_form
 from vermeerkat.utils.interruptable_process import interruptable_process
@@ -19,9 +20,18 @@ class entry_form(npyscreen.FormBaseNew):
     def event_loop(self):
         return self.parentApp
 
+    @property
+    def lastname(self):
+        return "BAT.last"
+
     def on_run_pressed(self):
         #self.event_loop["EXECUTIONVIEW"].start_pipeline_next_draw = True
         #self.event_loop.switchForm("EXECUTIONVIEW")
+
+        #overwrite lastfile
+        with open(self.lastname, 'wb') as handle:
+                pickle.dump(self.event_loop.STEPS, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
         self.event_loop.switchForm(None)
         curses.endwin()
 
