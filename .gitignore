@@ -127,3 +127,13 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# stimela
+msdir
+output
+*.log
+stimela_parameter_files
+*.last
+*.fits
+*.txt
+*.json
