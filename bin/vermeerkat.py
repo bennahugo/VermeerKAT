@@ -29,7 +29,7 @@ def task_calibrate():
            sel = "[X]" if opts[key] else "[.]"
            menu.items[menu.selected_option].text = "%s %s" % (sel, key)
         def __run_crosscal(opts, menu):
-           crosscal.compile_and_run([k for k in opts.keys() if opts[k]])
+           crosscal.compile_and_run([k for k in list(opts.keys()) if opts[k]])
         def __invert_all(opts, menu):
            for k in menu.items:
                if k.text.find("[X]") < 0 and k.text.find("[.]") < 0:

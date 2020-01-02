@@ -9,6 +9,9 @@ from collections import OrderedDict
 import shutil
 import vermeerkat
 
+def print(*args, **kwargs):
+    vermeerkat.log.info(*args)
+
 parser = argparse.ArgumentParser("MeerKAT BasicApplyTransfer (BAT) pipeline")
 parser.add_argument('--input_dir', dest='input_directory', metavar='<input directory>',
                     action='store', default='input',
@@ -69,9 +72,9 @@ args = parser.parse_args()
 INPUT = args.input_directory
 MSDIR = args.msdir_directory
 OUTPUT = args.output_directory
-print "Directory '{0:s}' is used as input directory".format(INPUT)
-print "Directory '{0:s}' is used as output directory".format(OUTPUT)
-print "Directory '{0:s}' is used as msdir directory".format(MSDIR)
+print("Directory '{0:s}' is used as input directory".format(INPUT))
+print("Directory '{0:s}' is used as output directory".format(OUTPUT))
+print("Directory '{0:s}' is used as msdir directory".format(MSDIR))
 
 def __merge_input():
     mod_path = os.path.dirname(vermeerkat.__file__)
@@ -80,20 +83,20 @@ def __merge_input():
 
 if not os.path.exists(INPUT):
     __merge_input()
-else if os.path.isdir(INPUT):
+elif os.path.isdir(INPUT):
     shutil.rmtree(INPUT)
     __merge_input()
 else:
     raise RuntimeError("A file called {} already exists, but is not a input directory".format(INPUT))
 
-print "Frequency invariant solution time interval: {0:s}".format(args.time_sol_interval)
-print "Time invariant solution frequency interval: {0:s}".format(args.freq_sol_interval)
-print "Will clip absolute delays over {0:.2f}ns".format(args.clip_delays)
-print "Will use '{}' as flux calibrator full sky model".format(args.cal_model)
+print("Frequency invariant solution time interval: {0:s}".format(args.time_sol_interval))
+print("Time invariant solution frequency interval: {0:s}".format(args.freq_sol_interval))
+print("Will clip absolute delays over {0:.2f}ns".format(args.clip_delays))
+print("Will use '{}' as flux calibrator full sky model".format(args.cal_model))
 
 FLAGANT = [f[0] if isinstance(f, list) else f for f in args.flag_antenna]
 if len(FLAGANT) != 0:
-    print "Will flag antenna {}".format(", ".join(["'{}'".format(a) for a in FLAGANT]))
+    print("Will flag antenna {}".format(", ".join(["'{}'".format(a) for a in FLAGANT])))
 
 BPCALIBRATOR = args.bandpass_field
 if BPCALIBRATOR is None: raise ValueError("No bandpass calibrator specified")
@@ -104,18 +107,18 @@ if len(TARGET) < 1: raise ValueError("No target specified")
 
 DO_USE_GAINCALIBRATOR = len(GCALIBRATOR) > 0
 if not DO_USE_GAINCALIBRATOR:
-    print "*NO* gain calibrator specified"
+    print("*NO* gain calibrator specified")
 
 DO_USE_GAINCALIBRATOR_DELAY = args.delay_with_gcal and DO_USE_GAINCALIBRATOR
 if DO_USE_GAINCALIBRATOR_DELAY:
-    print "Will transfer rate calibraton using gain calibrator"
+    print("Will transfer rate calibraton using gain calibrator")
 else:
-    print "Will *NOT* transfer rate calibraton from gain calibrator"
+    print("Will *NOT* transfer rate calibraton from gain calibrator")
 
 PREFIX = args.msprefix
 REFANT = args.ref_ant
 
-print "Reference antenna {0:s} to be used throughout".format(REFANT)
+print("Reference antenna {0:s} to be used throughout".format(REFANT))
 
 ## DO NOT EDIT ANY OF THESE PREDEFINED WORKERS UNLESS YOU KNOW WHAT YOU'RE DOING
 
@@ -131,24 +134,24 @@ ZEROGEN_DATA = PREFIX + ".ms"
 FIRSTGEN_DATA = ["{}.{}.1gc.ms".format(t, PREFIX) for t in TARGET]
 MANUAL_FLAG_LIST = []
 
-print "Dataset '{0:s}' to be used throughout".format(ZEROGEN_DATA)
+print("Dataset '{0:s}' to be used throughout".format(ZEROGEN_DATA))
 
 with tbl(os.path.join(MSDIR, ZEROGEN_DATA)+"::FIELD", ack=False) as t:
     field_names = t.getcol("NAME")
     FDB = {fn: str(fni) for fni, fn in enumerate(field_names)}
 
-print "The following fields are available:"
+print("The following fields are available:")
 for f in FDB:
-    print "\t '{0:s}' index {1:s}{2:s}".format(
+    print("\t '{0:s}' index {1:s}{2:s}".format(
         f, FDB[f],
         " selected as 'BP'" if f == BPCALIBRATOR else
         " selected as 'GC'" if f in GCALIBRATOR else
         " selected as 'ALTCAL'" if f in ALTCAL else
         " selected as 'TARGET'" if f in TARGET else
-        " not selected")
+        " not selected"))
 
 while True:
-    r = raw_input("Is this configuration correct? (Y/N) >> ").lower()
+    r = input("Is this configuration correct? (Y/N) >> ").lower()
     if r == "y":
         break
     elif r == "n":
@@ -312,7 +315,7 @@ def image_calibrator(recipe, label="prelim"):
            'no-negative': True,
            'tolerance': 0.75,
         }, input=INPUT, output=OUTPUT, label='mask_{}_{}'.format(label, f))
-        imopts2 = {k: v for k, v in imopts.items()}
+        imopts2 = {k: v for k, v in list(imopts.items())}
 
         imopts2["fits-mask"] = maskname + ":output"
         imopts2["local-rms"] = True
@@ -368,8 +371,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                                              d.real < np.min(clipminmax)))
             t.putcol("FLAG", fl)
             currentflagged = np.sum(fl) * 100.0 / fl.size
-            print "Flagged {0:.2f}%, up from previous {1:.2f}%".format(currentflagged,
-                                                                       prevflagged)
+            print("Flagged {0:.2f}%, up from previous {1:.2f}%".format(currentflagged,
+                                                                       prevflagged))
     recipe.add(clip_delays, "clipdel_%s" % label, {
             "vis": K0,
             "clipminmax": [-args.clip_delays, +args.clip_delays],
