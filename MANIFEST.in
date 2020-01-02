@@ -1,1 +1,3 @@
-recursive-include vermeerkat/data
+recursive-include vermeerkat/ *.py
+recursive-include vermeerkat/scripts/ *.py
+recursive-include vermeerkat/data *
