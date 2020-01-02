@@ -1,3 +1,5 @@
+from __future__ import print_function, absolute_import
+
 import stimela
 import stimela.dismissable as sdm
 from pyrap.tables import table as tbl
@@ -8,9 +10,6 @@ import numpy as np
 from collections import OrderedDict
 import shutil
 import vermeerkat
-
-def print(*args, **kwargs):
-    vermeerkat.log.info(*args)
 
 parser = argparse.ArgumentParser("MeerKAT BasicApplyTransfer (BAT) pipeline")
 parser.add_argument('--input_dir', dest='input_directory', metavar='<input directory>',
@@ -66,15 +65,32 @@ parser.add_argument('--cal_model', dest='cal_model', default='pks1934-638.lsm',
                     help="Calibrator apparent sky model (tigger lsm format)")
 parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
+parser.add_argument("--containerization", dest="containerization", default="docker",
+                    help="Containerization technology to use. See your stimela installation for options")
 
-args = parser.parse_args()
+args = parser.parse_args(sys.argv[2:])
 
 INPUT = args.input_directory
 MSDIR = args.msdir_directory
 OUTPUT = args.output_directory
-print("Directory '{0:s}' is used as input directory".format(INPUT))
-print("Directory '{0:s}' is used as output directory".format(OUTPUT))
-print("Directory '{0:s}' is used as msdir directory".format(MSDIR))
+vermeerkat.log.info("Directory '{0:s}' is used as input directory".format(INPUT))
+vermeerkat.log.info("Directory '{0:s}' is used as output directory".format(OUTPUT))
+vermeerkat.log.info("Directory '{0:s}' is used as msdir directory".format(MSDIR))
+
+PREFIX = args.msprefix
+ZEROGEN_DATA = PREFIX + ".ms"
+
+vermeerkat.log.info("Dataset '{0:s}' to be used throughout".format(ZEROGEN_DATA))
+
+with tbl(os.path.join(MSDIR, ZEROGEN_DATA)+"::FIELD", ack=False) as t:
+    field_names = t.getcol("NAME")
+    FDB = {fn: str(fni) for fni, fn in enumerate(field_names)}
+
+def flistr():
+    vermeerkat.log.info("The following fields are available:")
+    for f in FDB:
+        vermeerkat.log.info("\t '{0:s}' index {1:s}".format(f, FDB[f]))
+    sys.exit(0)
 
 def __merge_input():
     mod_path = os.path.dirname(vermeerkat.__file__)
@@ -89,14 +105,14 @@ elif os.path.isdir(INPUT):
 else:
     raise RuntimeError("A file called {} already exists, but is not a input directory".format(INPUT))
 
-print("Frequency invariant solution time interval: {0:s}".format(args.time_sol_interval))
-print("Time invariant solution frequency interval: {0:s}".format(args.freq_sol_interval))
-print("Will clip absolute delays over {0:.2f}ns".format(args.clip_delays))
-print("Will use '{}' as flux calibrator full sky model".format(args.cal_model))
+vermeerkat.log.info("Frequency invariant solution time interval: {0:s}".format(args.time_sol_interval))
+vermeerkat.log.info("Time invariant solution frequency interval: {0:s}".format(args.freq_sol_interval))
+vermeerkat.log.info("Will clip absolute delays over {0:.2f}ns".format(args.clip_delays))
+vermeerkat.log.info("Will use '{}' as flux calibrator full sky model".format(args.cal_model))
 
 FLAGANT = [f[0] if isinstance(f, list) else f for f in args.flag_antenna]
 if len(FLAGANT) != 0:
-    print("Will flag antenna {}".format(", ".join(["'{}'".format(a) for a in FLAGANT])))
+    vermeerkat.log.info("Will flag antenna {}".format(", ".join(["'{}'".format(a) for a in FLAGANT])))
 
 BPCALIBRATOR = args.bandpass_field
 if BPCALIBRATOR is None: raise ValueError("No bandpass calibrator specified")
@@ -107,18 +123,17 @@ if len(TARGET) < 1: raise ValueError("No target specified")
 
 DO_USE_GAINCALIBRATOR = len(GCALIBRATOR) > 0
 if not DO_USE_GAINCALIBRATOR:
-    print("*NO* gain calibrator specified")
+    vermeerkat.log.info("*NO* gain calibrator specified")
 
 DO_USE_GAINCALIBRATOR_DELAY = args.delay_with_gcal and DO_USE_GAINCALIBRATOR
 if DO_USE_GAINCALIBRATOR_DELAY:
-    print("Will transfer rate calibraton using gain calibrator")
+    vermeerkat.log.info("Will transfer rate calibraton using gain calibrator")
 else:
-    print("Will *NOT* transfer rate calibraton from gain calibrator")
+    vermeerkat.log.info("Will *NOT* transfer rate calibraton from gain calibrator")
 
-PREFIX = args.msprefix
 REFANT = args.ref_ant
 
-print("Reference antenna {0:s} to be used throughout".format(REFANT))
+vermeerkat.log.info("Reference antenna {0:s} to be used throughout".format(REFANT))
 
 ## DO NOT EDIT ANY OF THESE PREDEFINED WORKERS UNLESS YOU KNOW WHAT YOU'RE DOING
 
@@ -130,25 +145,23 @@ G1 = PREFIX + ".G1"
 F0 = PREFIX + ".F0"
 B1 = PREFIX + ".B1"
 
-ZEROGEN_DATA = PREFIX + ".ms"
-FIRSTGEN_DATA = ["{}.{}.1gc.ms".format(t, PREFIX) for t in TARGET]
 MANUAL_FLAG_LIST = []
+FIRSTGEN_DATA = ["{}.{}.1gc.ms".format(t, PREFIX) for t in TARGET]
 
-print("Dataset '{0:s}' to be used throughout".format(ZEROGEN_DATA))
-
-with tbl(os.path.join(MSDIR, ZEROGEN_DATA)+"::FIELD", ack=False) as t:
-    field_names = t.getcol("NAME")
-    FDB = {fn: str(fni) for fni, fn in enumerate(field_names)}
-
-print("The following fields are available:")
+vermeerkat.log.info("The following fields are available:")
 for f in FDB:
-    print("\t '{0:s}' index {1:s}{2:s}".format(
+    vermeerkat.log.info("\t '{0:s}' index {1:s}{2:s}".format(
         f, FDB[f],
         " selected as 'BP'" if f == BPCALIBRATOR else
         " selected as 'GC'" if f in GCALIBRATOR else
         " selected as 'ALTCAL'" if f in ALTCAL else
         " selected as 'TARGET'" if f in TARGET else
         " not selected"))
+
+try:
+    input = raw_input
+except NameError:
+    pass
 
 while True:
     r = input("Is this configuration correct? (Y/N) >> ").lower()
@@ -157,10 +170,12 @@ while True:
     elif r == "n":
         sys.exit(0)
     else:
-		continue
+        continue
 
 stimela.register_globals()
-recipe = stimela.Recipe('MEERKAT: basic calibration', ms_dir=MSDIR, JOB_TYPE="docker")
+recipe = stimela.Recipe('MEERKAT: basic transfer calibration',
+                        ms_dir=MSDIR,
+                        JOB_TYPE=args.containerization)
 
 def addmanualflags(recipe, reason, antenna="", spw="", scan="", uvrange="", field=""):
     """ Read CASA flagdata docs before using """
@@ -371,7 +386,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                                              d.real < np.min(clipminmax)))
             t.putcol("FLAG", fl)
             currentflagged = np.sum(fl) * 100.0 / fl.size
-            print("Flagged {0:.2f}%, up from previous {1:.2f}%".format(currentflagged,
+            vermeerkat.log.info("Flagged {0:.2f}%, up from previous {1:.2f}%".format(currentflagged,
                                                                        prevflagged))
     recipe.add(clip_delays, "clipdel_%s" % label, {
             "vis": K0,
@@ -573,9 +588,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[BPCALIBRATOR]]),
             "correlation": "XX,YY",
             "xaxis": "amp",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected-model",
             "yaxis": "phase",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected-model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -592,9 +607,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR]),
             "correlation": "XX,YY",
             "xaxis": "amp",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected-model",
             "yaxis": "phase",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected-model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -612,9 +627,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
             "correlation": "XX,YY",
             "xaxis": "real",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected-model",
             "yaxis": "imag",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected-model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -632,9 +647,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": FDB[BPCALIBRATOR],
             "correlation": "XX,YY",
             "xaxis": "real",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected-model",
             "yaxis": "imag",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected-model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -653,9 +668,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
             "correlation": "XX,YY",
             "xaxis": "freq",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected-model",
             "yaxis": "amp",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected-model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -672,9 +687,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
             "correlation": "XX,YY",
             "xaxis": "freq",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected-model",
             "yaxis": "phase",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected-model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -692,9 +707,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[BPCALIBRATOR]]),
             "correlation": "XX,YY",
             "xaxis": "freq",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected-model",
             "yaxis": "amp",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected-model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -710,9 +725,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[BPCALIBRATOR]]),
             "correlation": "XX,YY",
             "xaxis": "freq",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected-model",
             "yaxis": "phase",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected-model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -802,7 +817,7 @@ def define_steps():
         STEPS += finalize_and_split()
 
     checked_opts = OrderedDict()
-    for o in STEPS: checked_opts[o] = o
+    for o in STEPS: checked_opts[o] = True
     return checked_opts
 
 def compile_and_run(STEPS):

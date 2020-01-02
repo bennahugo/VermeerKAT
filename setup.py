@@ -19,6 +19,7 @@ requirements = [
  'curses-menu>=0.5.0',
  'lmfit>=0.9.8',
  'GPy>=1.9.2',
+ 'npyscreen>=4.10.5',
 ]
 
 PACKAGE_NAME = 'vermeerkat'

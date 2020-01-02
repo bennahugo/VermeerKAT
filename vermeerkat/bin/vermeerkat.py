@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from __future__ import print_function, absolute_import
 
 import sys
 import argparse
@@ -7,18 +8,21 @@ import vermeerkat
 from cursesmenu import CursesMenu
 from cursesmenu.items import FunctionItem, MenuItem, ExitItem, SubmenuItem
 
-
 def create_tlparser():
     tlparser = argparse.ArgumentParser(description="MeerKAT VermeerKAT Pipeline")
     tlparser.add_argument("-v", "--version", dest="version", action="store_true")
-    tlparser.add_argument("command", nargs="?", help="Subcommand to run", choices=["transfer"])
+    tlparser.add_argument("command", nargs="?", help="Subcommand to run", choices=["fieldlist", "transfer"])
     return tlparser
 
-def task_calibrate():
-    #lazy load task along with own argument parser
-    from vermeerkat.scripts import crosscal
-    steps = crosscal.define_steps()
+def task_flistr():
+    # lazy initialize plugin
+    import vermeerkat.plugins.FLISTR
 
+def task_transfer_new_menu():
+    # lazy initialize plugin
+    import vermeerkat.plugins.BAT
+
+def task_transfer():
     title = "MeerKAT VermeerKAT Pipeline"
     menu = CursesMenu(title, "Main menu")
     def init_menu(opts, menu):
@@ -62,8 +66,10 @@ def main():
     if tlargs.version:
         fleetingpol.log.info("VermeerKAT version %s" % vermeerkat.__version__)
         sys.exit(0)
-    if tlargs.command == "calibrate":
-        task_calibrate()
+    if tlargs.command == "transfer":
+        task_transfer_new_menu()
+    elif tlargs.command == "fieldlist":
+        task_flistr()
     else:
         tlparser.print_help()
 
