@@ -5,6 +5,9 @@ import os
 import sys
 import argparse
 import numpy as np
+from collections import OrderedDict
+import shutil
+import vermeerkat
 
 parser = argparse.ArgumentParser("MeerKAT BasicApplyTransfer (BAT) pipeline")
 parser.add_argument('--input_dir', dest='input_directory', metavar='<input directory>',
@@ -69,6 +72,19 @@ OUTPUT = args.output_directory
 print "Directory '{0:s}' is used as input directory".format(INPUT)
 print "Directory '{0:s}' is used as output directory".format(OUTPUT)
 print "Directory '{0:s}' is used as msdir directory".format(MSDIR)
+
+def __merge_input():
+    mod_path = os.path.dirname(vermeerkat.__file__)
+    data_dir = os.path.join(mod_path, "data", "input")
+    shutil.copytree(data_dir, INPUT)
+
+if not os.path.exists(INPUT):
+    __merge_input()
+else if os.path.isdir(INPUT):
+    shutil.rmtree(INPUT)
+    __merge_input()
+else:
+    raise RuntimeError("A file called {} already exists, but is not a input directory".format(INPUT))
 
 print "Frequency invariant solution time interval: {0:s}".format(args.time_sol_interval)
 print "Time invariant solution frequency interval: {0:s}".format(args.freq_sol_interval)
@@ -761,28 +777,31 @@ def finalize_and_split():
     return ["split_%s" % t for t in TARGET] + \
            ["backup_1GC_flags_%s" % t]
 
-STEPS = []
-if not args.skip_prepdata:
-    STEPS += prepare_data()
-for a in FLAGANT:
-    STEPS += addmanualflags(recipe, "Pointing issue {}".format(a), antenna=a, spw="", scan="", uvrange="", field="")
-if not args.skip_prelim_flagging:
-    STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy="mk_rfi_flagging_calibrator_fields_firstpass.yaml", on_corr_residuals=False, dc="DATA")
-if not args.skip_prelim_1GC:
-    STEPS += do_1GC(recipe, label="prelim", do_predict=True)
-if not args.skip_final_flagging:
-    STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass2", exec_strategy="mk_rfi_flagging_calibrator_fields_secondpass.yaml", on_corr_residuals=True, dc="CORRECTED_DATA")
-if not args.skip_final_1GC:
-    STEPS += do_1GC(recipe, label="second_round", do_predict=False, do_apply_target=False)
-if not args.skip_transfer_to_targets:
-    STEPS += do_1GC(recipe, label="apply_only", do_predict=False, do_apply_target=True, applyonly=True)
-if not args.skip_flag_targets:
-    STEPS += rfiflag_data(do_flag_targets=True, steplabel="final", exec_strategy="mk_rfi_flagging_target_fields_firstpass.yaml", on_corr_residuals=False, dc="CORRECTED_DATA")
-if not args.skip_final_split:
-    STEPS += finalize_and_split()
+def define_steps():
+    STEPS = []
+    if not args.skip_prepdata:
+        STEPS += prepare_data()
+    for a in FLAGANT:
+        STEPS += addmanualflags(recipe, "Pointing issue {}".format(a), antenna=a, spw="", scan="", uvrange="", field="")
+    if not args.skip_prelim_flagging:
+        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy="mk_rfi_flagging_calibrator_fields_firstpass.yaml", on_corr_residuals=False, dc="DATA")
+    if not args.skip_prelim_1GC:
+        STEPS += do_1GC(recipe, label="prelim", do_predict=True)
+    if not args.skip_final_flagging:
+        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass2", exec_strategy="mk_rfi_flagging_calibrator_fields_secondpass.yaml", on_corr_residuals=True, dc="CORRECTED_DATA")
+    if not args.skip_final_1GC:
+        STEPS += do_1GC(recipe, label="second_round", do_predict=False, do_apply_target=False)
+    if not args.skip_transfer_to_targets:
+        STEPS += do_1GC(recipe, label="apply_only", do_predict=False, do_apply_target=True, applyonly=True)
+    if not args.skip_flag_targets:
+        STEPS += rfiflag_data(do_flag_targets=True, steplabel="final", exec_strategy="mk_rfi_flagging_target_fields_firstpass.yaml", on_corr_residuals=False, dc="CORRECTED_DATA")
+    if not args.skip_final_split:
+        STEPS += finalize_and_split()
 
-## FINALLY RUN
-if len(STEPS) != 0:
-    recipe.run(STEPS)
-else:
-    print "Nothing to be done. Goodbye!"
+    checked_opts = OrderedDict()
+    for o in STEPS: checked_opts[o] = o
+    return checked_opts
+
+def compile_and_run(STEPS):
+    if len(STEPS) != 0:
+        recipe.run(STEPS)
