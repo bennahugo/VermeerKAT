@@ -11,12 +11,16 @@ from cursesmenu.items import FunctionItem, MenuItem, ExitItem, SubmenuItem
 def create_tlparser():
     tlparser = argparse.ArgumentParser(description="MeerKAT VermeerKAT Pipeline")
     tlparser.add_argument("-v", "--version", dest="version", action="store_true")
-    tlparser.add_argument("command", nargs="?", help="Subcommand to run", choices=["fieldlist", "transfer"])
+    tlparser.add_argument("command", nargs="?", help="Subcommand to run", choices=["fieldlist", "antlist", "transfer"])
     return tlparser
 
 def task_flistr():
     # lazy initialize plugin
     import vermeerkat.plugins.FLISTR
+
+def task_alistr():
+    # lazy initialize plugin
+    import vermeerkat.plugins.ALISTR
 
 def task_transfer_new_menu():
     # lazy initialize plugin
@@ -70,6 +74,8 @@ def main():
         task_transfer_new_menu()
     elif tlargs.command == "fieldlist":
         task_flistr()
+    elif tlargs.command == "antlist":
+        task_alistr()
     else:
         tlparser.print_help()
 
