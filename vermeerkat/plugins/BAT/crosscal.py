@@ -278,7 +278,7 @@ def rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy="mk
                   "ignore-flags": sdm.dismissable(None),
                   "scan-numbers": sdm.dismissable(None),
         },
-        input=INPUT, output=OUTPUT, label=steplabel + ".gc")
+        input=INPUT, output=OUTPUT, label=steplabel + ".gc" if not do_flag_targets else steplabel + ".targets")
 
 
         recipe.add("cab/casa_flagdata", "flag_summary_{}".format(steplabel), {
@@ -287,9 +287,8 @@ def rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy="mk
             },
             input=INPUT, output=OUTPUT, label="flagging_summary_{}".format(steplabel))
 
-        return [
-          steplabel,
-          steplabel + ".gc",
+        return [steplabel, steplabel + ".gc"] if not do_flag_targets else [steplabel + ".targets"] + \
+        [
           "flagging_summary_{}".format(steplabel)
         ]
 
@@ -526,6 +525,18 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
         },
         input=INPUT, output=OUTPUT, label="plot_gain_%s" % label)
 
+    recipe.add("cab/msutils", "bpgain_plot_%s" % label, {
+            "command": "plot_gains",
+            "ctable": "%s:output" % B0,
+            "tabtype": "bandpass",
+            "plot_file": "{0:s}.{1:s}.B0.png".format(PREFIX, label),
+            "subplot_scale": 4,
+            "plot_dpi": 180
+
+        },
+        input=INPUT, output=OUTPUT, label="plot_bpgain_%s" % label)
+
+
     # no model of alternatives, don't adjust amp
     recipe.add("cab/casa_gaincal", "altcalgain_%s" % label, {
             "vis": ZEROGEN_DATA,
@@ -588,9 +599,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[BPCALIBRATOR]]),
             "correlation": "XX,YY",
             "xaxis": "amp",
-            "xdatacolumn": "corrected-model",
+            "xdatacolumn": "corrected",
             "yaxis": "phase",
-            "ydatacolumn": "corrected-model",
+            "ydatacolumn": "corrected",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -607,9 +618,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR]),
             "correlation": "XX,YY",
             "xaxis": "amp",
-            "xdatacolumn": "corrected-model",
+            "xdatacolumn": "corrected",
             "yaxis": "phase",
-            "ydatacolumn": "corrected-model",
+            "ydatacolumn": "corrected",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -627,9 +638,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
             "correlation": "XX,YY",
             "xaxis": "real",
-            "xdatacolumn": "corrected-model",
+            "xdatacolumn": "corrected",
             "yaxis": "imag",
-            "ydatacolumn": "corrected-model",
+            "ydatacolumn": "corrected",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -647,9 +658,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": FDB[BPCALIBRATOR],
             "correlation": "XX,YY",
             "xaxis": "real",
-            "xdatacolumn": "corrected-model",
+            "xdatacolumn": "corrected",
             "yaxis": "imag",
-            "ydatacolumn": "corrected-model",
+            "ydatacolumn": "corrected",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -668,9 +679,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
             "correlation": "XX,YY",
             "xaxis": "freq",
-            "xdatacolumn": "corrected-model",
             "yaxis": "amp",
-            "ydatacolumn": "corrected-model",
+            "ydatacolumn": "corrected - model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -687,9 +697,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
             "correlation": "XX,YY",
             "xaxis": "freq",
-            "xdatacolumn": "corrected-model",
             "yaxis": "phase",
-            "ydatacolumn": "corrected-model",
+            "ydatacolumn": "corrected - model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -701,15 +710,52 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
         },
         input=INPUT, output=OUTPUT, label="pfreq_for_gain_%s" % label)
 
+    recipe.add("cab/casa_plotms", "plot_ascan_gcal_%s" % label, {
+            "vis": ZEROGEN_DATA,
+            "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
+            "correlation": "XX,YY",
+            "xaxis": "scan",
+            "yaxis": "amp",
+            "ydatacolumn": "corrected - model",
+            "coloraxis": "baseline",
+            "expformat": "png",
+            "exprange": "all",
+            "iteraxis": "field",
+            "overwrite": True,
+            "showgui": False,
+            "avgtime": "64",
+            "avgchannel": "32",
+            "plotfile": "{}.{}.gc.ampscan.png".format(PREFIX, label)
+        },
+        input=INPUT, output=OUTPUT, label="ascan_for_gain_%s" % label)
+
+    recipe.add("cab/casa_plotms", "plot_pscan_gcal_%s" % label, {
+            "vis": ZEROGEN_DATA,
+            "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
+            "correlation": "XX,YY",
+            "xaxis": "scan",
+            "yaxis": "phase",
+            "ydatacolumn": "corrected - model",
+            "coloraxis": "baseline",
+            "expformat": "png",
+            "exprange": "all",
+            "iteraxis": "field",
+            "overwrite": True,
+            "showgui": False,
+            "avgtime": "64",
+            "avgchannel": "32",
+            "plotfile": "{}.{}.gc.phasescan.png".format(PREFIX, label)
+        },
+        input=INPUT, output=OUTPUT, label="pscan_for_gain_%s" % label)
+
 
     recipe.add("cab/casa_plotms", "plot_afreq_bpcal_%s" % label, {
             "vis": ZEROGEN_DATA,
             "field": ",".join([FDB[BPCALIBRATOR]]),
             "correlation": "XX,YY",
             "xaxis": "freq",
-            "xdatacolumn": "corrected-model",
             "yaxis": "amp",
-            "ydatacolumn": "corrected-model",
+            "ydatacolumn": "corrected - model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -725,9 +771,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[BPCALIBRATOR]]),
             "correlation": "XX,YY",
             "xaxis": "freq",
-            "xdatacolumn": "corrected-model",
             "yaxis": "phase",
-            "ydatacolumn": "corrected-model",
+            "ydatacolumn": "corrected - model",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -737,6 +782,42 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "plotfile": "{}.{}.bp.phasefreq.png".format(PREFIX, label)
         },
         input=INPUT, output=OUTPUT, label="pfreq_for_bp_%s" % label)
+
+    recipe.add("cab/casa_plotms", "plot_ascan_bpcal_%s" % label, {
+            "vis": ZEROGEN_DATA,
+            "field": ",".join([FDB[BPCALIBRATOR]]),
+            "correlation": "XX,YY",
+            "xaxis": "scan",
+            "yaxis": "amp",
+            "ydatacolumn": "corrected - model",
+            "coloraxis": "baseline",
+            "expformat": "png",
+            "exprange": "all",
+            "overwrite": True,
+            "showgui": False,
+            "avgtime": "64",
+            "avgchannel": "32",
+            "plotfile": "{}.{}.bp.ampscan.png".format(PREFIX, label)
+        },
+        input=INPUT, output=OUTPUT, label="ascan_for_bp_%s" % label)
+
+    recipe.add("cab/casa_plotms", "plot_pscan_bpcal_%s" % label, {
+            "vis": ZEROGEN_DATA,
+            "field": ",".join([FDB[BPCALIBRATOR]]),
+            "correlation": "XX,YY",
+            "xaxis": "scan",
+            "yaxis": "phase",
+            "ydatacolumn": "corrected - model",
+            "coloraxis": "baseline",
+            "expformat": "png",
+            "exprange": "all",
+            "overwrite": True,
+            "showgui": False,
+            "avgtime": "64",
+            "avgchannel": "32",
+            "plotfile": "{}.{}.bp.phasescan.png".format(PREFIX, label)
+        },
+        input=INPUT, output=OUTPUT, label="pscan_for_bp_%s" % label)
 
 
     return ([
@@ -762,6 +843,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                 ]) + [
                 "plot_delays_{}".format(label),
                 "plot_gain_{}".format(label),
+                "plot_bpgain_{}".format(label),
                 "apply_sols_bp_{}".format(label),
                 "apply_1GC_solutions_{}".format(label),
             ] + [
@@ -773,8 +855,12 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                 "reim_plot_for_bp_{}".format(label),
                 "afreq_for_gain_{}".format(label),
                 "pfreq_for_gain_{}".format(label),
+                "ascan_for_gain_{}".format(label),
+                "pscan_for_gain_{}".format(label),
                 "afreq_for_bp_{}".format(label),
-                "pfreq_for_bp_{}".format(label)
+                "pfreq_for_bp_{}".format(label),
+                "ascan_for_bp_{}".format(label),
+                "pscan_for_bp_{}".format(label)
             ]
 
 def finalize_and_split():
@@ -812,7 +898,7 @@ def define_steps():
     if not args.skip_transfer_to_targets:
         STEPS += do_1GC(recipe, label="apply_only", do_predict=False, do_apply_target=True, applyonly=True)
     if not args.skip_flag_targets:
-        STEPS += rfiflag_data(do_flag_targets=True, steplabel="final", exec_strategy="mk_rfi_flagging_target_fields_firstpass.yaml", on_corr_residuals=False, dc="CORRECTED_DATA")
+        STEPS += rfiflag_data(do_flag_targets=True, steplabel="flagfinal", exec_strategy="mk_rfi_flagging_target_fields_firstpass.yaml", on_corr_residuals=False, dc="CORRECTED_DATA")
     if not args.skip_final_split:
         STEPS += finalize_and_split()
 
