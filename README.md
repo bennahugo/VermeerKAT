@@ -26,6 +26,9 @@ Fleetingpol is now part of the Vermeerkat suite. You can run this standalone on 
 vermeerkat poltransfer --help
 ```
 
+**NOTE:**
+A known issue with MeerKAT data is that both Q and V is flipped in sign with respect to the IEEE convention. After calibration it is necessary to flip signs in analysis.
+
 # Installation
 You need to have casacore-data installed on your system. 
 The package should be installed via pip, preferably into a virtual environment
