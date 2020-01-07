@@ -21,7 +21,7 @@ The Basic Apply Transfer (BAT) pipeline is incorporated and feature complete. Th
 vermeerkat transfer --help
 ```
 
-Fleetingpol is now part of the Vermeerkat suite. You can run this standalone on any bandpass corrected dataset (like that produced from BAT which has transferred the solutions to 3C286 / 3C138. I recommend that you mark your crosshand phase calibrator as an ALTCAL in BAT to calibrate keep the system phased on the crosshand calibrator. See available options from 
+Fleetingpol is now part of the Vermeerkat suite. You can run this standalone on any bandpass corrected dataset (like that produced from BAT which has transferred the solutions to 3C286 / 3C138), with the caveat that the corrected calibrator data is all stored in CORRECTED_DATA). I recommend that you mark your crosshand phase calibrator as an ALTCAL in BAT to calibrate keep the system phased on the crosshand calibrator. See available options from 
 ```
 vermeerkat poltransfer --help
 ```
