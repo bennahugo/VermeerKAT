@@ -2,7 +2,9 @@ from __future__ import print_function
 
 import vermeerkat
 import curses
-from vermeerkat.plugins.BAT.viewcontrollers import event_loop
+from vermeerkat.plugins.fleetingpol.viewcontrollers import event_loop
+
+log = vermeerkat.log
 
 def STEPS():
     #lazy load task along with own argument parser
@@ -10,9 +12,9 @@ def STEPS():
     try:
         __STEPS
     except:
-        from vermeerkat.plugins.BAT import crosscal
-        __STEPS = crosscal.define_steps()
-    return __STEPS, crosscal.compile_and_run
+        from vermeerkat.plugins.fleetingpol import fleetingpol
+        __STEPS = fleetingpol.define_steps()
+    return __STEPS, fleetingpol.compile_and_run
 
 try:
     event_loop.STEPS, event_loop.RUN = STEPS()

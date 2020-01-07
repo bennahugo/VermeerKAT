@@ -55,10 +55,10 @@ parser.add_argument('--skip_final_split', dest='skip_final_split', action='store
 parser.add_argument('msprefix', metavar='<measurement set name prefix>',
                     help='Prefix of measurement set name as it appears relative to msdir. This must NOT be a '
                          'path prefix')
-parser.add_argument('--time_sol_interval', dest='time_sol_interval', default="64s",
-                    help="Time (gain) solutions interval")
+parser.add_argument('--time_sol_interval', dest='time_sol_interval', default="inf",
+                    help="Time (gain) solutions interval (default one per scan)")
 parser.add_argument('--freq_sol_interval', dest='freq_sol_interval', default="inf",
-                    help="Frequency time-invariant solutions interval")
+                    help="Frequency time-invariant solutions interval (default one per observation)")
 parser.add_argument('--clip_delays', dest='clip_delays', default=1, type=float,
                     help="Clip delays above this absolute in nanoseconds")
 parser.add_argument('--cal_model', dest='cal_model', default='pks1934-638.lsm',
@@ -67,6 +67,8 @@ parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
+#parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", action="store_true",
+#                    help="Image gain calibrators 
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -345,6 +347,13 @@ def image_calibrator(recipe, label="prelim"):
     return steps
 
 def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, applyonly=False):
+    recipe.add("cab/casa_flagmanager", "backup_flags_prior_1gc_%s" % label, {
+                   "vis": ZEROGEN_DATA,
+                   "mode": "save",
+                   "versionname": "prior_%s_1GC" % label,
+            },
+            input=INPUT, output=OUTPUT, label="backup_flags_prior_1gc_%s" % label)
+
     recipe.add("cab/simulator", "predict_fluxcalibrator_%s" % label, {
            "skymodel": args.cal_model, # we are using 1934-638 as flux scale reference
            "msname": ZEROGEN_DATA,
@@ -360,7 +369,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
     },
     input=INPUT, output=OUTPUT, label="set_flux_reference_%s" % label)
 
-    recipe.add("cab/casa_gaincal", "delaycal_%s" % label, {
+    recipe.add("cab/casa47_gaincal", "delaycal_%s" % label, {
             "vis": ZEROGEN_DATA,
             "caltable": K0,
             "field": ",".join([FDB[BPCALIBRATOR]]),
@@ -370,8 +379,6 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "minsnr": 3,
             "minblperant": 4,
             "gaintype": "K",
-            ##"spw": "0:1.3~1.5GHz",
-            ##"uvrange": "150~10000m" # EXCLUDE RFI INFESTATION!
         },
         input=INPUT, output=OUTPUT, label="delay_calibration_bp_%s" % label)
 
@@ -395,7 +402,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
 
 
     ##capture time drift of bandpass
-    recipe.add("cab/casa_gaincal", "bandpassgain_%s" % label, {
+    recipe.add("cab/casa47_gaincal", "bandpassgain_%s" % label, {
             "vis": ZEROGEN_DATA,
             "caltable": G0,
             "field": ",".join([FDB[BPCALIBRATOR]]),
@@ -406,12 +413,13 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             ##"spw": "0:1.3~1.5GHz",
             "gaintable": ["%s:output" % ct for ct in [K0]],
             "gainfield": [FDB[BPCALIBRATOR]],
-            "interp":["nearest"]
+            "interp":["nearest"],
+            "refant": REFANT,
         },
         input=INPUT, output=OUTPUT, label="remove_bp_average_%s" % label)
 
     # average as much as possible to get as good SNR on bandpass as possible
-    recipe.add("cab/casa_bandpass", "bandpasscal_%s" % label, {
+    recipe.add("cab/casa47_bandpass", "bandpasscal_%s" % label, {
             "vis": ZEROGEN_DATA,
             "caltable": "%s:output" % B0,
             "field": ",".join([FDB[BPCALIBRATOR]]),
@@ -419,14 +427,15 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "combine": "scan",
             "minsnr": 3.0,
             "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
-            "fillgaps": 100000000, # LERP!
+            #"fillgaps": 100000000, # LERP!
             "gaintable": ["%s:output" % ct for ct in [K0, G0]],
             "gainfield": [FDB[BPCALIBRATOR], FDB[BPCALIBRATOR]],
-            "interp": ["nearest", "nearest"]
+            "interp": ["nearest", "nearest"],
+            "refant": REFANT,
         },
         input=INPUT, output=OUTPUT, label="bp_freq_calibration_%s" % label)
 
-    recipe.add("cab/casa_applycal", "apply_sols_bp_%s" % label, {
+    recipe.add("cab/casa47_applycal", "apply_sols_bp_%s" % label, {
             "vis": ZEROGEN_DATA,
             "field": ",".join([FDB[BPCALIBRATOR]] +
                               [FDB[a] for a in ALTCAL] + 
@@ -444,7 +453,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
     cal_im_steps = image_calibrator(recipe=recipe, label=label)
 
     ##capture time drift of gain and alternative calibrators
-    recipe.add("cab/casa_gaincal", "delaycal_gc_%s" % label, {
+    recipe.add("cab/casa47_gaincal", "delaycal_gc_%s" % label, {
             "vis": ZEROGEN_DATA,
             "caltable": K0,
             "field": ",".join([FDB[a] for a in ALTCAL] +
@@ -462,7 +471,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "interp": ["linear,linear"],
             ##"spw": "0:1.3~1.5GHz",
             "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
-            "append": True
+            "append": True,
+            "refant": REFANT,
         },
         input=INPUT, output=OUTPUT, label="delay_calibration_gc_%s" % label)
 
@@ -482,7 +492,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
         },
         input=INPUT, output=OUTPUT, label="plot_delays_%s" % label)
 
-    recipe.add("cab/casa_gaincal", "apgain_%s" % label, {
+    recipe.add("cab/casa47_gaincal", "apgain_%s" % label, {
             "vis": ZEROGEN_DATA,
             "caltable": G0,
             "field": (",".join([FDB[a] for a in ALTCAL] +
@@ -501,7 +511,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                           ",".join([FDB[a] for a in ALTCAL]),
                          ],
             "interp":["linear,linear", "nearest"],
-            "append": True
+            "append": True,
+            "refant": REFANT,
         },
         input=INPUT, output=OUTPUT, label="apgain_%s" % label)
 
@@ -538,7 +549,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
 
 
     # no model of alternatives, don't adjust amp
-    recipe.add("cab/casa_gaincal", "altcalgain_%s" % label, {
+    recipe.add("cab/casa47_gaincal", "altcalgain_%s" % label, {
             "vis": ZEROGEN_DATA,
             "caltable": GA,
             "field": ",".join([FDB[a] for a in ALTCAL]),
@@ -550,7 +561,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             ##"spw": "0:1.3~1.5GHz",
             "gaintable": ["%s:output" % ct for ct in [B0, K0]],
             "gainfield": [FDB[BPCALIBRATOR], ",".join([FDB[a] for a in ALTCAL])],
-            "interp":["linear,linear","nearest"]
+            "interp":["linear,linear","nearest"],
+            "refant": REFANT,
         },
         input=INPUT, output=OUTPUT, label="remove_altcal_average_%s" % label)
 
@@ -566,7 +578,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
 
 
     for a in ALTCAL:
-        recipe.add("cab/casa_applycal", "apply_sols_ac_%s_%s" % (FDB[a], label), {
+        recipe.add("cab/casa47_applycal", "apply_sols_ac_%s_%s" % (FDB[a], label), {
                 "vis": ZEROGEN_DATA,
                 "field": FDB[a],
                 "gaintable": ["%s:output" % ct for ct in [B0,K0,GA]],
@@ -579,7 +591,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             },
             input=INPUT, output=OUTPUT, label="apply_sols_ac_%s_%s" % (FDB[a], label))
 
-    recipe.add("cab/casa_applycal", "apply_sols_%s" % label, {
+    recipe.add("cab/casa47_applycal", "apply_sols_%s" % label, {
             "vis": ZEROGEN_DATA,
             "field": ",".join([FDB[t] for t in GCALIBRATOR] +
                               ([FDB[t] for t in TARGET] if do_apply_target else [])),
@@ -599,9 +611,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[BPCALIBRATOR]]),
             "correlation": "XX,YY",
             "xaxis": "amp",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected/model_vector",
             "yaxis": "phase",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -618,9 +630,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR]),
             "correlation": "XX,YY",
             "xaxis": "amp",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected/model_vector",
             "yaxis": "phase",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -638,9 +650,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": ",".join([FDB[t] for t in GCALIBRATOR + ALTCAL]),
             "correlation": "XX,YY",
             "xaxis": "real",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected/model_vector",
             "yaxis": "imag",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -658,9 +670,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "field": FDB[BPCALIBRATOR],
             "correlation": "XX,YY",
             "xaxis": "real",
-            "xdatacolumn": "corrected",
+            "xdatacolumn": "corrected/model_vector",
             "yaxis": "imag",
-            "ydatacolumn": "corrected",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -680,7 +692,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "correlation": "XX,YY",
             "xaxis": "freq",
             "yaxis": "amp",
-            "ydatacolumn": "corrected - model",
+            "xdatacolumn": "corrected/model_vector",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -698,7 +711,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "correlation": "XX,YY",
             "xaxis": "freq",
             "yaxis": "phase",
-            "ydatacolumn": "corrected - model",
+            "xdatacolumn": "corrected/model_vector",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -716,7 +730,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "correlation": "XX,YY",
             "xaxis": "scan",
             "yaxis": "amp",
-            "ydatacolumn": "corrected - model",
+            "xdatacolumn": "corrected/model_vector",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -735,7 +750,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "correlation": "XX,YY",
             "xaxis": "scan",
             "yaxis": "phase",
-            "ydatacolumn": "corrected - model",
+            "xdatacolumn": "corrected/model_vector",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -755,7 +771,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "correlation": "XX,YY",
             "xaxis": "freq",
             "yaxis": "amp",
-            "ydatacolumn": "corrected - model",
+            "xdatacolumn": "corrected/model_vector",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -772,7 +789,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "correlation": "XX,YY",
             "xaxis": "freq",
             "yaxis": "phase",
-            "ydatacolumn": "corrected - model",
+            "xdatacolumn": "corrected/model_vector",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -789,7 +807,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "correlation": "XX,YY",
             "xaxis": "scan",
             "yaxis": "amp",
-            "ydatacolumn": "corrected - model",
+            "xdatacolumn": "corrected/model_vector",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -807,7 +826,8 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "correlation": "XX,YY",
             "xaxis": "scan",
             "yaxis": "phase",
-            "ydatacolumn": "corrected - model",
+            "xdatacolumn": "corrected/model_vector",
+            "ydatacolumn": "corrected/model_vector",
             "coloraxis": "baseline",
             "expformat": "png",
             "exprange": "all",
@@ -821,6 +841,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
 
 
     return ([
+                "backup_flags_prior_1gc_{}".format(label)
+            ] +
+            [
                 "set_flux_reference_{}".format(label)
             ] if do_predict else []) + ([
                     "delay_calibration_bp_{}".format(label),
@@ -867,19 +890,19 @@ def finalize_and_split():
     for ti, t in enumerate(TARGET):
         recipe.add("cab/casa_split", "split_%d" % ti, {
             "vis": ZEROGEN_DATA,
-            "field": ",".join([FDB[t]]),
+            "field": ",".join([FDB[t]] + [FDB[t] for t in [BPCALIBRATOR] + GCALIBRATOR + ALTCAL]),
             "outputvis": FIRSTGEN_DATA[ti]
         },
-        input=INPUT, output=OUTPUT, label="split_%s" % t)
+        input=INPUT, output=OUTPUT, label="split_%d" % ti)
         recipe.add("cab/casa_flagmanager", "backup_1GC_flags_%d" % ti, {
                    "vis": FIRSTGEN_DATA[ti],
                    "mode": "save",
                    "versionname": "1GC_LEGACY",
             },
-            input=INPUT, output=OUTPUT, label="backup_1GC_flags_%s" % t)
+            input=INPUT, output=OUTPUT, label="backup_1GC_flags_%d" % ti)
 
-    return ["split_%s" % t for t in TARGET] + \
-           ["backup_1GC_flags_%s" % t]
+    return ["split_%d" % ti for ti, t in enumerate(TARGET)] + \
+           ["backup_1GC_flags_%d" % ti for ti, t in enumerate(TARGET)]
 
 def define_steps():
     STEPS = []
