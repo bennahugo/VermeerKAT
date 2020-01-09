@@ -13,13 +13,21 @@ This is the temporary home of the VermeerKAT pipeline. The goal of this project 
  - to combine the various transfer, polarization and self calibration pipelines that I have laying around and implemented in the SKA-SA fleeting pol pipeline.
  - to implement a semi-interactive pipelining framework - something that is critically lacking from MeerKATHI
 
-Currently the pipeline only does flagging and transfer calibration. The various tasks are available through the ```vermeerkat``` wrapper. Use ```vermeerkat --help```
+Currently the pipeline does flagging, transfer calibration and polarization calibration. The various tasks are available through the ```vermeerkat``` wrapper. Use ```vermeerkat --help```
 
 # Functionality
 The Basic Apply Transfer (BAT) pipeline is incorporated and feature complete. The pipeline uses the RARG tricolour flagger in combination with CASA and WSClean to perform transfer calibration (1GC). BAT can be invoked through:
 ```
 vermeerkat transfer --help
 ```
+
+Fleetingpol is now part of the Vermeerkat suite. You can run this standalone on any bandpass corrected dataset (like that produced from BAT which has transferred the solutions to 3C286 / 3C138), with the caveat that the corrected calibrator data is all stored in CORRECTED_DATA). I recommend that you mark your crosshand phase calibrator as an ALTCAL in BAT to calibrate keep the system phased on the crosshand calibrator. See available options from 
+```
+vermeerkat poltransfer --help
+```
+
+**NOTE:**
+A known issue with MeerKAT data is that both Q and V is flipped in sign with respect to the IEEE convention. After calibration it is necessary to flip signs in analysis. The fleetingpol pipeline forms a SKY_CORRECTED_DATA column which can be used for imaging in the derotated sky frame. Any further self calibration should be performed with the CORRECTED_DATA column. Ideally this pipeline is run post self-calibration of the phase of the target field.
 
 # Installation
 You need to have casacore-data installed on your system. 
