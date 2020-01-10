@@ -27,7 +27,9 @@ parser.add_argument('msprefix',
                          'path prefix')
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
-
+parser.add_argument("--transfer_to_existing", dest="transfer_to_existing", type=str, default=None,
+                    help="Transfer to existing dataset (specified as prefix) instead of creating a new dataset. "
+                         "This can be used to transfer leakage solutions to self cal'd targets for instance")
 
 args = parser.parse_args(sys.argv[2:])
 INPUT = args.input_directory
@@ -38,7 +40,7 @@ OUTPUT = args.output_directory
 PREFIX = args.msprefix
 COMB_MS = PREFIX + ".ms"
 BP_CAL_MS = PREFIX + "PREPOL.PREAVG.ms"
-POL_CAL_MS = PREFIX + ".POL.ms"
+POL_CAL_MS = (PREFIX + ".POL.ms") if args.transfer_to_existing is None else "{}.ms".format(args.transfer_to_existing)
 KX = PREFIX + ".KX"
 Xref = PREFIX + ".Xref"
 Xf = PREFIX + ".Xf"
@@ -147,7 +149,10 @@ while True:
         continue
 stimela.register_globals()
 
-recipe = stimela.Recipe('MEERKAT FleetingPol: Interferometric boresight polarization calibration', ms_dir=MSDIR, JOB_TYPE=args.containerization)
+recipe = stimela.Recipe('MEERKAT FleetingPol: Interferometric boresight polarization calibration',
+                        ms_dir=MSDIR,
+                        singularity_image_dir=os.environ.get("SINGULARITY_PULLFOLDER", ""),
+                        JOB_TYPE=args.containerization)
 
 recipe.add("cab/casa_oldsplit", "split_avg_data", {
     "vis": COMB_MS,
@@ -288,14 +293,15 @@ recipe.add("cab/casa47_applycal", "apply_polcal_sols_avg", {
     },
     input=INPUT, output=OUTPUT, label="apply_polcal_solutions_avg")
 
-# split prior bandpass corrected data into DATA then apply
-recipe.add("cab/casa_oldsplit", "split_polcal_data", {
-    "vis": COMB_MS,
-    "outputvis": POL_CAL_MS,
-    "datacolumn": "corrected",
-    "field": "",
-},
-input=INPUT, output=OUTPUT, label="split_polcal_data")
+if args.transfer_to_existing is None:
+    # split prior bandpass corrected data into DATA then apply
+    recipe.add("cab/casa_oldsplit", "split_polcal_data", {
+        "vis": COMB_MS,
+        "outputvis": POL_CAL_MS,
+        "datacolumn": "corrected",
+        "field": "",
+    },
+    input=INPUT, output=OUTPUT, label="split_polcal_data")
 
 recipe.add(__correct_feed_convention, "correct_feed_convention_polcaldb", {
           "ms": os.path.abspath(os.path.join(MSDIR, POL_CAL_MS)),
@@ -363,7 +369,11 @@ def define_steps():
             "leakage_ref",
             "leakage_freq",
             "apply_polcal_solutions_avg",
-            "split_polcal_data",
+        ] + ([
+                "split_polcal_data",
+             ] if args.transfer_to_existing is None else []
+        ) +
+        [
             "correct_feed_convention_polcaldb",
             "apply_polcal_solutions_skyframe",
             "move_corrected_to_skycorrected_column",

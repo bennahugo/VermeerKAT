@@ -31,14 +31,14 @@ parser.add_argument('msprefix', metavar='<measurement set name prefix>',
 parser.add_argument('--clip_delays', dest='clip_delays', default=1, type=float,
                     help="Clip delays above this absolute in nanoseconds")
 parser.add_argument('--mfs_bands', dest='mfs_bands', default=4, type=int,
-                    help="MFS bands to use during imaging (default 4)")
+                    help="MFS bands to use during imaging (default 8)")
 parser.add_argument('--mfs_predictbands', dest='mfs_predictbands', default=10, type=int,
                     help="Number of predict bands to use during imaging (default 10)")
 parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
-default_recipe = "p(35,256s),p(25,64s),dp(15,16s),ap(7,16s),s,i(SUBTRACTED_DATA,0.0)"
+default_recipe = "p(35,256s),p(25,64s),dp(15,16s),ap(7,16s),i(CORRECTED_DATA,0.0),s,i(SUBTRACTED_DATA,0.0)"
 parser.add_argument("--recipe", dest="recipe",
                     default=default_recipe,
                     help="Selfcal steps to perform of the format cal(mask sigma,solint) or im(imcol,briggs) or s"
@@ -50,8 +50,8 @@ parser.add_argument("--npix", dest="npix", default=8192,
                     help="Number of pixels to use in imaging (default 8192)")
 parser.add_argument("--cellsize", dest="cellsize", default=1.3,
                     help="Cellsize to use in imaging (default 1.3asec)")
-parser.add_argument("--cal_briggs", dest="cal_briggs", default=-2.0,
-                    help="Briggs robust to use during calibration (default -2.0)")
+parser.add_argument("--cal_briggs", dest="cal_briggs", default=-0.6,
+                    help="Briggs robust to use during calibration (default -0.6)")
 
 
 args = parser.parse_args(sys.argv[2:])
@@ -141,7 +141,7 @@ recipe = stimela.Recipe('MeerKAT: INTROSPECT selfcal pipeline',
 def image(incol="DATA",
           label='initial',
           tmpimlabel="",
-          nfacets=4,
+          nfacets=19,
           masksig=25,
           briggs=args.cal_briggs,
           do_mask=True,
@@ -180,7 +180,6 @@ def image(incol="DATA",
             "Deconv-Gain": 0.1,
             "Deconv-FluxThreshold": 1.0e-6,
             "Deconv-AllowNegative": True,
-            "Comp-DegridDecorr": 0.00,
             "Log-Boring": True,
             "Log-Memory": True,
             "RIME-ForwardMode": sdm.dismissable(rime_forward),
@@ -280,11 +279,20 @@ def calibrate(incol="DATA",
                 "minblperant": 4,
                 "gaintype": "G",
                 "calmode": "p",
-                "uvrange": "0:400~10000m",
+                "uvrange": "400~10000m",
                 "gaintable": ["%s:output" % ct for ct in previous_caltables[t]],
             }, input=INPUT, output=OUTPUT, label="calibrate_{}_{}_{}".format(label, "Gp", ti), shared_memory="250g")
             steps.append("calibrate_{}_{}_{}".format(label, "Gp", ti))
             previous_caltables[t].append(caltable_label)
+            recipe.add("cab/msutils", "gain_plot_{}_{}_{}".format(label, "Gp", ti), {
+                "command": "plot_gains",
+                "ctable": "%s:output" % caltable_label,
+                "tabtype": "gain",
+                "plot_file": "{0:s}.{1:s}.png".format(PREFIX, caltable_label),
+                "subplot_scale": 4,
+                "plot_dpi": 180
+            }, input=INPUT, output=OUTPUT, label="plot_gain_{}_{}_{}".format(label, "Gp", ti))
+            steps.append("plot_gain_{}_{}_{}".format(label, "Gp", ti))
         elif corrtype == "ap":
             caltable_label = "{}_{}_{}".format(label, t, "Gap")
             recipe.add("cab/casa47_gaincal", "calibrate_{}_{}_{}".format(label, "Gap", ti), {
@@ -297,12 +305,21 @@ def calibrate(incol="DATA",
                 "minsnr": 3,
                 "minblperant": 4,
                 "gaintype": "G",
-                "uvrange": "0:400~10000m",
+                "uvrange": "400~10000m",
                 "calmode": "ap",
                 "gaintable": ["%s:output" % ct for ct in previous_caltables[t]],
             }, input=INPUT, output=OUTPUT, label="calibrate_{}_{}_{}".format(label, "Gap", ti), shared_memory="250g")
             steps.append("calibrate_{}_{}_{}".format(label, "Gap", ti))
             previous_caltables[t].append(caltable_label)
+            recipe.add("cab/msutils", "gain_plot_{}_{}_{}".format(label, "Gap", ti), {
+                "command": "plot_gains",
+                "ctable": "%s:output" % caltable_label,
+                "tabtype": "gain",
+                "plot_file": "{0:s}.{1:s}.png".format(PREFIX, caltable_label),
+                "subplot_scale": 4,
+                "plot_dpi": 180
+            }, input=INPUT, output=OUTPUT, label="plot_gain_{}_{}_{}".format(label, "Gap", ti))
+            steps.append("plot_gain_{}_{}_{}".format(label, "Gap", ti))
         elif corrtype == "dp":
             caltable_label = "{}_{}_{}".format(label, t, "K")
             recipe.add("cab/casa47_gaincal", "calibrate_{}_{}_{}".format(label, "K", ti), {
@@ -339,6 +356,16 @@ def calibrate(incol="DATA",
             }, input=INPUT, output=OUTPUT, label="clip_delay_{}_{}".format(label, ti))
             steps.append("clip_delay_{}_{}".format(label, ti))
 
+            recipe.add("cab/msutils", "gain_plot_{}_{}_{}".format(label, "K", ti), {
+                "command": "plot_gains",
+                "ctable": "%s:output" % caltable_label,
+                "tabtype": "delay",
+                "plot_file": "{0:s}.{1:s}.png".format(PREFIX, caltable_label),
+                "subplot_scale": 4,
+                "plot_dpi": 180
+            }, input=INPUT, output=OUTPUT, label="plot_gain_{}_{}_{}".format(label, "K", ti))
+            steps.append("plot_gain_{}_{}_{}".format(label, "K", ti))
+
             caltable_label = "{}_{}_{}".format(label, t, "Gp")
             recipe.add("cab/casa47_gaincal", "calibrate_{}_{}_{}".format(label, "Gp", ti), {
                 "vis": DATASET,
@@ -351,21 +378,30 @@ def calibrate(incol="DATA",
                 "minblperant": 4,
                 "gaintype": "G",
                 "calmode": "ap",
-                "uvrange": "0:400~10000m",
+                "uvrange": "400~10000m",
                 "gaintable": ["%s:output" % ct for ct in previous_caltables[t]],
             }, input=INPUT, output=OUTPUT, label="calibrate_{}_{}_{}".format(label, "Gp", ti), shared_memory="250g")
             steps.append("calibrate_{}_{}_{}".format(label, "Gp", ti))
             previous_caltables[t].append(caltable_label)
+            recipe.add("cab/msutils", "gain_plot_{}_{}_{}".format(label, "Gp", ti), {
+                "command": "plot_gains",
+                "ctable": "%s:output" % caltable_label,
+                "tabtype": "gain",
+                "plot_file": "{0:s}.{1:s}.png".format(PREFIX, caltable_label),
+                "subplot_scale": 4,
+                "plot_dpi": 180
+            }, input=INPUT, output=OUTPUT, label="plot_gain_{}_{}_{}".format(label, "Gp", ti))
+            steps.append("plot_gain_{}_{}_{}".format(label, "Gp", ti))
         else:
             raise ValueError("Unknown calibration mode {}".format(corrtype))
 
-        recipe.add("cab/casa47_applycal", "apply_sols_bp_{}_{}".format(label, ti), {
+        recipe.add("cab/casa47_applycal", "apply_sols_{}_{}".format(label, ti), {
                 "vis": DATASET,
                 "field": ",".join([FDB[t]]),
                 "gaintable": ["%s:output" % ct for ct in previous_caltables[t]],
          },
-        input=INPUT, output=OUTPUT, label="apply_sols_bp_{}_{}".format(label, ti))
-        steps.append("apply_sols_bp_{}_{}".format(label, ti))
+        input=INPUT, output=OUTPUT, label="apply_sols_{}_{}".format(label, ti))
+        steps.append("apply_sols_{}_{}".format(label, ti))
 
     return steps
 

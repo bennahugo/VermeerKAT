@@ -11,7 +11,10 @@ from cursesmenu.items import FunctionItem, MenuItem, ExitItem, SubmenuItem
 def create_tlparser():
     tlparser = argparse.ArgumentParser(description="MeerKAT VermeerKAT Pipeline")
     tlparser.add_argument("-v", "--version", dest="version", action="store_true")
-    tlparser.add_argument("command", nargs="?", help="Subcommand to run", choices=["fieldlist", "antlist", "transfer", "poltransfer"])
+    tlparser.add_argument("command",
+                          nargs="?",
+                          help="Subcommand to run",
+                          choices=["fieldlist", "antlist", "transfer", "poltransfer", "selfcal"])
     return tlparser
 
 def task_flistr():
@@ -30,6 +33,10 @@ def task_poltransfer():
     # lazy initialize plugin
     import vermeerkat.plugins.fleetingpol
 
+def task_selfcal():
+    # lazy initialize plugin
+    import vermeerkat.plugins.INTROSPECT
+
 def main():
     tlparser = create_tlparser()
     tlargs = tlparser.parse_args(sys.argv[1:2])
@@ -44,6 +51,8 @@ def main():
         task_alistr()
     elif tlargs.command == "poltransfer":
         task_poltransfer()
+    elif tlargs.command == "selfcal":
+        task_selfcal()
     else:
         tlparser.print_help()
 

@@ -177,6 +177,7 @@ while True:
 stimela.register_globals()
 recipe = stimela.Recipe('MEERKAT: basic transfer calibration',
                         ms_dir=MSDIR,
+                        singularity_image_dir=os.environ.get("SINGULARITY_PULLFOLDER", ""),
                         JOB_TYPE=args.containerization)
 
 def addmanualflags(recipe, reason, antenna="", spw="", scan="", uvrange="", field=""):
@@ -888,9 +889,9 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
 
 def finalize_and_split():
     for ti, t in enumerate(TARGET):
-        recipe.add("cab/casa_split", "split_%d" % ti, {
+        recipe.add("cab/casa_oldsplit", "split_%d" % ti, {
             "vis": ZEROGEN_DATA,
-            "field": ",".join([FDB[t]] + [FDB[t] for t in [BPCALIBRATOR] + GCALIBRATOR + ALTCAL]),
+            "field": ",".join([FDB[t]]),
             "outputvis": FIRSTGEN_DATA[ti]
         },
         input=INPUT, output=OUTPUT, label="split_%d" % ti)
