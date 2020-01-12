@@ -682,7 +682,7 @@ def define_steps():
             STEPS += image(incol=imcol.strip(),
                             label='image_{}'.format(xi),
                             tmpimlabel="_image_{}".format(xi),
-                            briggs=briggs,
+                            briggs=float(briggs),
                             do_mask=False,
                             weight_col="WEIGHT")
         elif xxx in ["s"]:
