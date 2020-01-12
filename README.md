@@ -29,12 +29,12 @@ vermeerkat poltransfer --help
 **NOTE:**
 A known issue with MeerKAT data is that both Q and V is flipped in sign with respect to the IEEE convention. After calibration it is necessary to flip signs in analysis. The fleetingpol pipeline forms a SKY_CORRECTED_DATA column which can be used for imaging in the derotated sky frame. Any further self calibration should be performed with the CORRECTED_DATA column. Ideally this pipeline is run post self-calibration of the phase of the target field.
 
-The Introspect self-calibration pipeline is a configurable self-calibration pipeline with capacity to apply delay, phase and amplitude self-calibration using CASA and WSClean. A recipe can be specified as follows:
+The Introspect self-calibration pipeline is a configurable self-calibration pipeline with capacity to apply delay, phase and amplitude self-calibration using CASA and DDFacet. A recipe can be specified as follows:
 ```
 p(35,256s),p(25,64s),dp(15,16s),ap(7,16s),i(CORRECTED_DATA,0.0),s,i(SUBTRACTED_DATA,0.0)
 ```
 
-- Available options for cal are p - phase, dp - delay+phase, ap - ampphase.
+- Available options for cal are p - phase, dp - delay+phase, ap - ampphase with parameters for mask sigma and solution interval.
 - Available options for im are currently only i with customization of image column and robust weighting.
 - s subtracts MODEL_DATA from CORRECTED_DATA to form SUBTRACTED_DATA for all fields.
 
