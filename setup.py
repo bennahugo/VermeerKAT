@@ -23,7 +23,7 @@ requirements = [
 ]
 
 PACKAGE_NAME = 'vermeerkat'
-__version__ = '0.0.1'
+__version__ = '1.0.0'
 
 setup(name = PACKAGE_NAME,
       version = __version__,
