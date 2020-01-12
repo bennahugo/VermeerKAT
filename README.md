@@ -13,10 +13,10 @@ This is the temporary home of the VermeerKAT pipeline. The goal of this project 
  - to combine the various transfer, polarization and self calibration pipelines that I have laying around and implemented in the SKA-SA fleeting pol pipeline.
  - to implement a semi-interactive pipelining framework - something that is critically lacking from MeerKATHI
 
-Currently the pipeline does flagging, transfer calibration and polarization calibration. The various tasks are available through the ```vermeerkat``` wrapper. Use ```vermeerkat --help```
+Currently the pipeline does flagging, transfer calibration, polarization calibration and 2GC self-calibration. The various tasks are available through the ```vermeerkat``` wrapper. Use ```vermeerkat --help```
 
 # Functionality
-The Basic Apply Transfer (BAT) pipeline is incorporated and feature complete. The pipeline uses the RARG tricolour flagger in combination with CASA and WSClean to perform transfer calibration (1GC). BAT can be invoked through:
+The Basic Apply Transfer (BAT) pipeline is feature complete. The pipeline uses the RARG tricolour flagger in combination with CASA and WSClean to perform transfer calibration (1GC). BAT can be invoked through:
 ```
 vermeerkat transfer --help
 ```
@@ -28,6 +28,20 @@ vermeerkat poltransfer --help
 
 **NOTE:**
 A known issue with MeerKAT data is that both Q and V is flipped in sign with respect to the IEEE convention. After calibration it is necessary to flip signs in analysis. The fleetingpol pipeline forms a SKY_CORRECTED_DATA column which can be used for imaging in the derotated sky frame. Any further self calibration should be performed with the CORRECTED_DATA column. Ideally this pipeline is run post self-calibration of the phase of the target field.
+
+The Introspect self-calibration pipeline is a configurable self-calibration pipeline with capacity to apply delay, phase and amplitude self-calibration using CASA and WSClean. A recipe can be specified as follows:
+```
+p(35,256s),p(25,64s),dp(15,16s),ap(7,16s),i(CORRECTED_DATA,0.0),s,i(SUBTRACTED_DATA,0.0)
+```
+
+- Available options for cal are p - phase, dp - delay+phase, ap - ampphase.
+- Available options for im are currently only i with customization of image column and robust weighting.
+- s subtracts MODEL_DATA from CORRECTED_DATA to form SUBTRACTED_DATA for all fields.
+
+Full help is available by running
+```
+vermeerkat selfcal --help
+```
 
 # Installation
 You need to have casacore-data installed on your system. 
