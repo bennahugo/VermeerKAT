@@ -52,6 +52,8 @@ parser.add_argument("--cellsize", dest="cellsize", default=1.3,
                     help="Cellsize to use in imaging (default 1.3asec)")
 parser.add_argument("--cal_briggs", dest="cal_briggs", default=-0.6,
                     help="Briggs robust to use during calibration (default -0.6)")
+parser.add_argument("--imaging_data_chunk_hours", dest="imaging_data_chunk_hours", default=0.05, type=float,
+                    help="Chunking hours (default: 0.05 hours)")
 
 
 args = parser.parse_args(sys.argv[2:])
@@ -157,7 +159,7 @@ def image(incol="DATA",
         image_opts =  {
             "Data-MS": DATASET,
             "Data-ColName": incol,
-            "Data-ChunkHours": 0.5,
+            "Data-ChunkHours": args.imaging_data_chunk_hours,
             "Selection-Field": int(FDB[t]),
             "Output-Mode": "Clean" if not restore else "Predict",
             "Output-Name": t + tmpimlabel,
