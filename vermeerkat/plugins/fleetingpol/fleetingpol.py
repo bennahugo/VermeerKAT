@@ -73,8 +73,10 @@ bp_calibrators={"PKS1934-638":{"standard":"Perley-Butler 2010",
                                "reffreq":None,
                                "polindex":None,
                                "polangle":None}
-               }
+                               }
 bp_calibrators["PKS1934-63"] = bp_calibrators["PKS1934-638"]
+bp_calibrators["PKSB1934-63"] = bp_calibrators["PKS1934-638"]
+bp_calibrators["PKSB1934-638"] = bp_calibrators["PKS1934-638"]
 bp_calibrators["J1939-6342"] = bp_calibrators["PKS1934-638"]
 bp_calibrators["J1938-6341"] = bp_calibrators["PKS1934-638"]
 
@@ -103,6 +105,12 @@ polarized_calibrators["J0521+1638"] = polarized_calibrators["3C138"]
 fexcl = [pc for pc in polarized_calibrators.keys() if pc not in args.polcal_field]
 for f in fexcl:
     polarized_calibrators.pop(f)
+
+if len(polarized_calibrators) == 0:
+    raise RuntimeError("No models found for polarized calibrator. Please check your field name and adjust if necessary")
+
+if len(bp_calibrators) == 0:
+    raise RuntimeError("No models found for bandpass calibrator. Please check your field name and adjust if necessary")
 
 def merge_two_dicts(x, y):
     z = x.copy()   # start with x's keys and values
@@ -158,7 +166,7 @@ recipe.add("cab/casa_oldsplit", "split_avg_data", {
     "vis": COMB_MS,
     "outputvis": BP_CAL_MS,
     "datacolumn": "corrected",
-    "field": "",
+    "field": ",".join(args.bandpass_field + args.polcal_field),
     "timebin": pol_mstimeavg,
     "width": pol_solchanavg,
 },
@@ -176,6 +184,15 @@ recipe.add(dgn.generate_leakage_report, "polarization_leakage_precal", {
           "field": args.bandpass_field[0]
 },
 input=INPUT, output=OUTPUT, label="precal_polleak_rep")
+
+recipe.add('cab/tricolour', "mask_poldata", {
+    "ms"                  : BP_CAL_MS,
+    "data-column"         : "DATA",
+    "window-backend"      : 'numpy',
+    "flagging-strategy"   : "total_power",
+    "config"              : "mk_rfi_flagging_pol_mask.yaml",
+},
+input=INPUT, output=OUTPUT, label="mask_poldata")
 
 
 # First solve for crosshand delays with respect to the refant
@@ -199,8 +216,8 @@ def __correct_feed_convention(ms):
     import numpy as np
     with tbl("%s::FEED" % ms, readonly=False) as t:
         ang = t.getcol("RECEPTOR_ANGLE")
-        ang[:,0] = np.pi/2
-        ang[:,1] = np.pi/2
+        ang[:,0] = -np.pi/2
+        ang[:,1] = -np.pi/2
         t.putcol("RECEPTOR_ANGLE", ang)
         log.info("Receptor angle rotated by -90deg")
 
@@ -235,6 +252,7 @@ recipe.add("cab/casa47_polcal", "crosshand_phase_ref", {
         "solint": timegain_solint, #one per scan to track movement of the mean
         "combine": "",
         "poltype": "Xf",
+        "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
         "gaintable": ["%s:output" % ct for ct in [KX]],
@@ -248,6 +266,7 @@ recipe.add("cab/casa47_polcal", "crosshand_phase_freq", {
         "solint": phase_solint, #solint to obtain SNR on solutions
         "combine": "scan",
         "poltype": "Xf",
+        "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
         "gaintable": ["%s:output" % ct for ct in [KX, Xref]],
@@ -261,10 +280,11 @@ input=INPUT, output=OUTPUT, label="crosshand_phase_freq")
 recipe.add("cab/casa47_polcal", "leakage_ref", {
         "vis": BP_CAL_MS,
         "caltable": Dref,
-        "field": ",".join([bp for bp in bp_calibrators]),
+        "field": ",".join([bp for bp in args.bandpass_field]),
         "solint": timegain_solint, #1 per scan to keep track of mean
         "combine": "",
         "poltype": "D",
+        "preavg": -1.0,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
         "refant": REFANT,
         #"spw": "0:1.0~1.1ghz",
@@ -275,10 +295,11 @@ input=INPUT, output=OUTPUT, label="leakage_ref")
 recipe.add("cab/casa47_polcal", "leakage_freq", {
         "vis": BP_CAL_MS,
         "caltable": Df,
-        "field": ",".join([bp for bp in bp_calibrators]),
+        "field": ",".join([bp for bp in args.bandpass_field]),
         "solint": phase_solint, # ensure SNR criterion is met
         "combine": "scan",
         "poltype": "Df",
+        "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
         "gaintable": ["%s:output" % ct for ct in [KX, Xref, Xf, Dref]],
@@ -343,6 +364,7 @@ input=INPUT, output=OUTPUT, label="postcal_polleak_rep")
 
 recipe.add(dgn.generate_calsolutions_report, "calsolutions_rep", {
           "output": os.path.abspath(OUTPUT),
+          "calprefix": PREFIX,
           "rep": os.path.join(OUTPUT, "calsolutions_report.html"),
 },
 input=INPUT, output=OUTPUT, label="calsolutions_rep")
@@ -355,6 +377,7 @@ def define_steps():
         [
             "split_avg_data",
             "clearcal_avg",
+            "mask_poldata",
             "precal_polleak_rep",
             ###################################
             ### Polarization calibration

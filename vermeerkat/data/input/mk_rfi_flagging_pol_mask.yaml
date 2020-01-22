@@ -1,0 +1,16 @@
+
+# List of strategies to apply in order
+strategies:
+    # only enable me if you really want to start from scratch
+    # -
+    #   name: reset_flags:
+    #   task: unflag
+    -
+        name: nan_dropouts_flag
+        task: flag_nans_zeros
+    -
+        name: background_static_mask
+        task: apply_static_mask
+        kwargs:
+            accumulation_mode: "or"
+            uvrange: ""

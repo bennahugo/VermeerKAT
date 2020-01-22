@@ -12,7 +12,7 @@ from nbconvert.preprocessors import CellExecutionError
 LEAKAGE_TEMPLATE=os.path.join(os.path.dirname(__file__), "Polarization.ipynb")
 SOLUTIONS_TEMPLATE=os.path.join(os.path.dirname(__file__),"Polcal solutions.ipynb")
 
-def generate_calsolutions_report(rep, output="output"):
+def generate_calsolutions_report(rep, output="output", calprefix="COMBINED"):
     # read template
     with open(SOLUTIONS_TEMPLATE) as f:
         rep_template = f.read()
@@ -26,6 +26,9 @@ def generate_calsolutions_report(rep, output="output"):
     def __customize(s):
         s = re.sub(r'OUTPUT\s*=\s*\S*',
                    'OUTPUT = \'%s\'' % output,
+                   s)
+        s = re.sub(r"CALPREFIX\s*=\s*\S*",
+                   'CALPREFIX = \'%s\'' % calprefix,
                    s)
         return s
 
