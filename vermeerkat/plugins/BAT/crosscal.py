@@ -107,8 +107,8 @@ elif os.path.isdir(INPUT):
 else:
     raise RuntimeError("A file called {} already exists, but is not a input directory".format(INPUT))
 
-vermeerkat.log.info("Frequency invariant solution time interval: {0:s}".format(args.time_sol_interval))
-vermeerkat.log.info("Time invariant solution frequency interval: {0:s}".format(args.freq_sol_interval))
+vermeerkat.log.info("Time invariant solution time interval: {0:s}".format(args.time_sol_interval))
+vermeerkat.log.info("Frequency invariant solution frequency interval: {0:s}".format(args.freq_sol_interval))
 vermeerkat.log.info("Will clip absolute delays over {0:.2f}ns".format(args.clip_delays))
 vermeerkat.log.info("Will use '{}' as flux calibrator full sky model".format(args.cal_model))
 
@@ -290,7 +290,8 @@ def rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy="mk
             },
             input=INPUT, output=OUTPUT, label="flagging_summary_{}".format(steplabel))
 
-        return [steplabel, steplabel + ".gc"] if not do_flag_targets else [steplabel + ".targets"] + \
+        return (([steplabel, steplabel + ".gc"] if len(ALTCAL) > 0 or DO_USE_GAINCALIBRATOR else [steplabel])
+                if not do_flag_targets else [steplabel + ".targets"]) + \
         [
           "flagging_summary_{}".format(steplabel)
         ]
@@ -528,7 +529,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
 
     recipe.add("cab/msutils", "gain_plot_%s" % label, {
             "command": "plot_gains",
-            "ctable": "%s:output" % F0,
+            "ctable": "%s:output" % (F0 if DO_USE_GAINCALIBRATOR else G0),
             "tabtype": "gain",
             "plot_file": "{0:s}.{1:s}.F0.png".format(PREFIX, label),
             "subplot_scale": 4,
@@ -853,12 +854,13 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                     "bp_freq_calibration_{}".format(label),
                     "apply_sols_bp_{}".format(label),
                 ] + cal_im_steps +
-                [
-                    "delay_calibration_gc_{}".format(label),
-                    "clip_delay_gc_{}".format(label),
-                    "apgain_{}".format(label),
-                    "fluxscale_{}".format(label),
-                ] + ([
+                    ([
+                        "delay_calibration_gc_{}".format(label),
+                        "clip_delay_gc_{}".format(label),
+                     ] if len(ALTCAL) > 0 or DO_USE_GAINCALIBRATOR_DELAY else []) + ([
+                        "apgain_{}".format(label),
+                        "fluxscale_{}".format(label),
+                     ] if len(ALTCAL) > 0 or DO_USE_GAINCALIBRATOR else [])  + ([
                         "remove_altcal_average_{}".format(label),
                         "plot_altgains_{}".format(label),
                      ] if len(ALTCAL) > 0 else [])
@@ -874,18 +876,19 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                 "apply_sols_ac_{0:s}_{1:s}".format(FDB[a], label) for a in ALTCAL
             ] + [
                 "phaseamp_plot_for_bandpass_{}".format(label),
-                "phaseamp_plot_for_gain_{}".format(label),
-                "reim_plot_for_gain_{}".format(label),
                 "reim_plot_for_bp_{}".format(label),
-                "afreq_for_gain_{}".format(label),
-                "pfreq_for_gain_{}".format(label),
-                "ascan_for_gain_{}".format(label),
-                "pscan_for_gain_{}".format(label),
                 "afreq_for_bp_{}".format(label),
                 "pfreq_for_bp_{}".format(label),
                 "ascan_for_bp_{}".format(label),
                 "pscan_for_bp_{}".format(label)
-            ]
+            ] + ([
+                    "afreq_for_gain_{}".format(label),
+                    "pfreq_for_gain_{}".format(label),
+                    "ascan_for_gain_{}".format(label),
+                    "pscan_for_gain_{}".format(label),
+                    "phaseamp_plot_for_gain_{}".format(label),
+                    "reim_plot_for_gain_{}".format(label),
+                 ] if len(ALTCAL) > 0 or DO_USE_GAINCALIBRATOR else [])
 
 def finalize_and_split():
     for ti, t in enumerate(TARGET):
