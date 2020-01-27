@@ -67,8 +67,8 @@ parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
-#parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", action="store_true",
-#                    help="Image gain calibrators 
+parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", action="store_true",
+                    help="Image gain calibrators")
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -452,7 +452,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
         input=INPUT, output=OUTPUT, label="apply_sols_bp_%s" % label)
 
     #create basic model for secondaries
-    cal_im_steps = image_calibrator(recipe=recipe, label=label)
+    cal_im_steps = image_calibrator(recipe=recipe, label=label) if args.image_gaincalibrators else []
 
     ##capture time drift of gain and alternative calibrators
     recipe.add("cab/casa47_gaincal", "delaycal_gc_%s" % label, {
@@ -494,38 +494,37 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
         },
         input=INPUT, output=OUTPUT, label="plot_delays_%s" % label)
 
-    recipe.add("cab/casa47_gaincal", "apgain_%s" % label, {
-            "vis": ZEROGEN_DATA,
-            "caltable": G0,
-            "field": (",".join([FDB[a] for a in ALTCAL] +
-                               [FDB[t] for t in GCALIBRATOR])) if DO_USE_GAINCALIBRATOR else
-                     (",".join([FDB[a] for a in ALTCAL])),
-            "solint": args.time_sol_interval,
-            "combine": "",
-            "gaintype": "G",
-            "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
-            ##"spw": "0:1.3~1.5GHz",
-            "gaintable": ["%s:output" % ct for ct in [B0, K0]],
-            "gainfield": [FDB[BPCALIBRATOR],
-                          ",".join([FDB[a] for a in ALTCAL] +
-                                   [FDB[t] for t in GCALIBRATOR]) if (DO_USE_GAINCALIBRATOR and
-                                                                      DO_USE_GAINCALIBRATOR_DELAY) else
-                          ",".join([FDB[a] for a in ALTCAL]),
-                         ],
-            "interp":["linear,linear", "nearest"],
-            "append": True,
-            "refant": REFANT,
-        },
-        input=INPUT, output=OUTPUT, label="apgain_%s" % label)
+    if DO_USE_GAINCALIBRATOR:
+        recipe.add("cab/casa47_gaincal", "apgain_%s" % label, {
+                "vis": ZEROGEN_DATA,
+                "caltable": G0,
+                "field": ",".join([FDB[t] for t in GCALIBRATOR]),
+                "solint": args.time_sol_interval,
+                "combine": "",
+                "gaintype": "G",
+                "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
+                ##"spw": "0:1.3~1.5GHz",
+                "gaintable": ["%s:output" % ct for ct in [B0, K0]],
+                "gainfield": [FDB[BPCALIBRATOR],
+                              ",".join([FDB[a] for a in ALTCAL] +
+                                       [FDB[t] for t in GCALIBRATOR]) if (DO_USE_GAINCALIBRATOR and
+                                                                          DO_USE_GAINCALIBRATOR_DELAY) else
+                              ",".join([FDB[a] for a in ALTCAL]),
+                             ],
+                "interp":["linear,linear", "nearest"],
+                "append": True,
+                "refant": REFANT,
+            },
+            input=INPUT, output=OUTPUT, label="apgain_%s" % label)
 
-    recipe.add("cab/casa_fluxscale", "fluxscale_%s" % label, {
-            "vis": ZEROGEN_DATA,
-            "caltable": "%s:output" % G0,
-            "fluxtable": "%s:output" % F0,
-            "reference": ",".join([FDB[BPCALIBRATOR]]),
-            "transfer": ",".join([FDB[t] for t in GCALIBRATOR]),
-        },
-        input=INPUT, output=OUTPUT, label="fluxscale_%s" % label)
+        recipe.add("cab/casa_fluxscale", "fluxscale_%s" % label, {
+                "vis": ZEROGEN_DATA,
+                "caltable": "%s:output" % G0,
+                "fluxtable": "%s:output" % F0,
+                "reference": ",".join([FDB[BPCALIBRATOR]]),
+                "transfer": ",".join([FDB[t] for t in GCALIBRATOR]),
+            },
+            input=INPUT, output=OUTPUT, label="fluxscale_%s" % label)
 
     recipe.add("cab/msutils", "gain_plot_%s" % label, {
             "command": "plot_gains",
@@ -549,24 +548,27 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
         },
         input=INPUT, output=OUTPUT, label="plot_bpgain_%s" % label)
 
-
-    # no model of alternatives, don't adjust amp
-    recipe.add("cab/casa47_gaincal", "altcalgain_%s" % label, {
-            "vis": ZEROGEN_DATA,
-            "caltable": GA,
-            "field": ",".join([FDB[a] for a in ALTCAL]),
-            "solint": args.time_sol_interval,
-            "combine": "",
-            "gaintype": "G",
-            "calmode": "p",
-            "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
-            ##"spw": "0:1.3~1.5GHz",
-            "gaintable": ["%s:output" % ct for ct in [B0, K0]],
-            "gainfield": [FDB[BPCALIBRATOR], ",".join([FDB[a] for a in ALTCAL])],
-            "interp":["linear,linear","nearest"],
-            "refant": REFANT,
-        },
-        input=INPUT, output=OUTPUT, label="remove_altcal_average_%s" % label)
+    if len(ALTCAL) > 0:
+        # no model of alternatives, don't adjust amp
+        recipe.add("cab/casa47_gaincal", "altcalgain_%s" % label, {
+                "vis": ZEROGEN_DATA,
+                "caltable": GA,
+                "field": ",".join([FDB[a] for a in ALTCAL]),
+                "solint": args.time_sol_interval,
+                "combine": "",
+                "gaintype": "G",
+                "calmode": "p",
+                "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
+                ##"spw": "0:1.3~1.5GHz",
+                "gaintable": ["%s:output" % ct for ct in [K0, G0, B0]],
+                "gainfield": [
+                    ",".join([FDB[a] for a in ALTCAL]),
+                    FDB[BPCALIBRATOR],
+                    FDB[BPCALIBRATOR]],
+                "interp":["linear,linear","nearest"],
+                "refant": REFANT,
+            },
+            input=INPUT, output=OUTPUT, label="remove_altcal_average_%s" % label)
 
     recipe.add("cab/msutils", "altgain_plot_%s" % label, {
             "command": "plot_gains",
@@ -583,30 +585,32 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
         recipe.add("cab/casa47_applycal", "apply_sols_ac_%s_%s" % (FDB[a], label), {
                 "vis": ZEROGEN_DATA,
                 "field": FDB[a],
-                "gaintable": ["%s:output" % ct for ct in [B0,K0,GA]],
+                "gaintable": ["%s:output" % ct for ct in [K0,G0,B0,GA]],
                 "gainfield": [
-                              ",".join([FDB[BPCALIBRATOR]]),
                               ",".join([FDB[a]]),
+                              ",".join([FDB[BPCALIBRATOR]]),
+                              ",".join([FDB[BPCALIBRATOR]]),
                               ",".join([FDB[a]]),
                              ],
                 "interp": ["linear,linear","nearest","nearest"]
             },
             input=INPUT, output=OUTPUT, label="apply_sols_ac_%s_%s" % (FDB[a], label))
 
-    recipe.add("cab/casa47_applycal", "apply_sols_%s" % label, {
-            "vis": ZEROGEN_DATA,
-            "field": ",".join([FDB[t] for t in GCALIBRATOR] +
-                              ([FDB[t] for t in TARGET] if do_apply_target else [])),
-            "gaintable": ["%s:output" % ct for ct in [B0,K0,F0]] if DO_USE_GAINCALIBRATOR else ["%s:output" % ct for ct in [B0,K0,G0]],
-            "gainfield": [FDB[BPCALIBRATOR],
-                          ",".join([FDB[t] for t in GCALIBRATOR])
-                          if (DO_USE_GAINCALIBRATOR and DO_USE_GAINCALIBRATOR_DELAY) else FDB[BPCALIBRATOR],
-                          ",".join([FDB[t] for t in GCALIBRATOR])
-                          if DO_USE_GAINCALIBRATOR else FDB[BPCALIBRATOR],
-                         ],
-            "interp": ["linear,linear","nearest","nearest"]
-        },
-        input=INPUT, output=OUTPUT, label="apply_1GC_solutions_%s" % label)
+    if do_apply_target or DO_USE_GAINCALIBRATOR:
+        recipe.add("cab/casa47_applycal", "apply_sols_%s" % label, {
+                "vis": ZEROGEN_DATA,
+                "field": ",".join([FDB[t] for t in GCALIBRATOR] +
+                                  ([FDB[t] for t in TARGET] if do_apply_target else [])),
+                "gaintable": ["%s:output" % ct for ct in [B0,K0,F0]] if DO_USE_GAINCALIBRATOR else ["%s:output" % ct for ct in [B0,K0,G0]],
+                "gainfield": [FDB[BPCALIBRATOR],
+                              ",".join([FDB[t] for t in GCALIBRATOR])
+                              if (DO_USE_GAINCALIBRATOR and DO_USE_GAINCALIBRATOR_DELAY) else FDB[BPCALIBRATOR],
+                              ",".join([FDB[t] for t in GCALIBRATOR])
+                              if DO_USE_GAINCALIBRATOR else FDB[BPCALIBRATOR],
+                             ],
+                "interp": ["linear,linear","nearest","nearest"]
+            },
+            input=INPUT, output=OUTPUT, label="apply_1GC_solutions_%s" % label)
 
     recipe.add("cab/casa_plotms", "plot_pa_bp_%s" % label, {
             "vis": ZEROGEN_DATA,
@@ -706,6 +710,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "plotfile": "{}.{}.gc.ampfreq.png".format(PREFIX, label)
         },
         input=INPUT, output=OUTPUT, label="afreq_for_gain_%s" % label)
+
 
     recipe.add("cab/casa_plotms", "plot_pfreq_gcal_%s" % label, {
             "vis": ZEROGEN_DATA,
@@ -860,21 +865,25 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                      ] if len(ALTCAL) > 0 or DO_USE_GAINCALIBRATOR_DELAY else []) + ([
                         "apgain_{}".format(label),
                         "fluxscale_{}".format(label),
-                     ] if len(ALTCAL) > 0 or DO_USE_GAINCALIBRATOR else [])  + ([
+                     ] if DO_USE_GAINCALIBRATOR else [])  + ([
                         "remove_altcal_average_{}".format(label),
                         "plot_altgains_{}".format(label),
                      ] if len(ALTCAL) > 0 else [])
                 if not applyonly else [
                     "apply_sols_bp_{}".format(label)
-                ]) + [
+                ]) +\
+            [
                 "plot_delays_{}".format(label),
                 "plot_gain_{}".format(label),
                 "plot_bpgain_{}".format(label),
                 "apply_sols_bp_{}".format(label),
-                "apply_1GC_solutions_{}".format(label),
-            ] + [
+            ] + ([
+                    "apply_1GC_solutions_{}".format(label)
+                 ] if do_apply_target or DO_USE_GAINCALIBRATOR else []) +\
+            [
                 "apply_sols_ac_{0:s}_{1:s}".format(FDB[a], label) for a in ALTCAL
-            ] + [
+            ] +\
+            [
                 "phaseamp_plot_for_bandpass_{}".format(label),
                 "reim_plot_for_bp_{}".format(label),
                 "afreq_for_bp_{}".format(label),

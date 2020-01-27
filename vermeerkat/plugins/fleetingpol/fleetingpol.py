@@ -87,13 +87,13 @@ for f in fexcl:
 # for calibration of crosshand phases
 # Perley Butler standards + NRAO polarization models
 polarized_calibrators={"3C138":{"standard":"manual",
-                                "fluxdensity":[8.4012,-1,-1,-1],
+                                "fluxdensity":[8.4012],
                                 "spix":[-0.54890527955337987, -0.069418066176041668, -0.0018858519926001926],
                                 "reffreq":"1.45GHz",
                                 "polindex":[0.075],
                                 "polangle":[-0.19199]},
                        "3C286":{"standard":"manual",
-                                "fluxdensity":[14.918703,-1,-1,-1],
+                                "fluxdensity":[14.918703],
                                 "spix":[-0.50593909976893958,-0.070580431627712076,0.0067337240268301466],
                                 "reffreq":"1.45GHz",
                                 "polindex":[0.095],
