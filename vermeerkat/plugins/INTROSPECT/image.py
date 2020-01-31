@@ -2,6 +2,7 @@ from __future__ import print_function, absolute_import
 
 import stimela
 import stimela.dismissable as sdm
+from stimela.pathformatter import pathformatter as spf
 import copy
 import os
 import time
@@ -38,14 +39,18 @@ parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
-default_recipe = "p(35,256s),p(25,64s),dp(15,16s),ap(7,16s),i(CORRECTED_DATA,0.0),s,i(SUBTRACTED_DATA,0.0)"
+default_recipe = "p(35,256s),p(35,64s),dp(35,16s),dd(45,4.0,20,50,CORRECTED_DATA,DE_DATA),i(DE_DATA,0.0),s(DE_DATA),i(SUBTRACTED_DATA,0.0)"
 parser.add_argument("--recipe", dest="recipe",
                     default=default_recipe,
-                    help="Selfcal steps to perform of the format cal(mask sigma,solint) or im(imcol,briggs) or s"
-                         "Available options for cal are p - phase, dp - delay+phase, ap - ampphase. "
+                    help="Selfcal steps to perform of the format cal(mask sigma,solint) or im(imcol,briggs) or s(datacol) or "
+                         "dd(mask_sigma, tag_sigma, timesolint, freqsolint, incol, outcol) "
+                         "Available options for cal are p - phase, dp - delay+phase, ap - ampphase "
                          "Available options for im are currently only i with customization of image column and robust weighting. "
-                         "s subtracts MODEL_DATA from CORRECTED_DATA to form SUBTRACTED_DATA for all fields. "
-                         "(default: '{}'".format(default_recipe))
+                         "s subtracts MODEL_DATA from named datacol to form SUBTRACTED_DATA for all fields. "
+                         "Available options for 'dd' direction dependent cal are currently masking sigma of the model image, "
+                         "tagging threshold, solution interval in time integraions (NOT seconds), frequency integration in channels, "
+                         "input column and output column (need not exist) "
+                         "(default: '{}')".format(default_recipe))
 parser.add_argument("--npix", dest="npix", default=8192,
                     help="Number of pixels to use in imaging (default 8192)")
 parser.add_argument("--cellsize", dest="cellsize", default=1.3,
@@ -54,6 +59,8 @@ parser.add_argument("--cal_briggs", dest="cal_briggs", default=-0.6,
                     help="Briggs robust to use during calibration (default -0.6)")
 parser.add_argument("--imaging_data_chunk_hours", dest="imaging_data_chunk_hours", default=0.05, type=float,
                     help="Chunking hours (default: 0.05 hours)")
+parser.add_argument("--ncubical_workers", dest="ncubical_workers", default=25, type=int,
+                    help="Number of cubical workers (default: 25)")
 
 
 args = parser.parse_args(sys.argv[2:])
@@ -96,27 +103,34 @@ for t in TARGET:
 REFANT = args.ref_ant
 vermeerkat.log.info("Reference antenna {0:s} to be used throughout".format(REFANT))
 
-reg = r"(?:(?P<x>p|dp|ap)\((?P<s>\d+),(?P<int>\d+s?)\)),?|"\
-      r"(?:(?P<xx>i)\((?P<imcol>[a-zA-Z_]+),(?P<briggs>\d+(?:.\d+)?)),?|"\
-      r"(?:(?P<xxx>s)),?"
+reg = r"(?:(?P<cal>p|dp|ap)\((?P<s>\d+),(?P<int>\d+s?)\)),?|"\
+      r"(?:(?P<img>i)\((?P<imcol>[a-zA-Z_]+),(?P<briggs>\d+(?:.\d+)?)),?|"\
+      r"(?:(?P<sub>s)\((?P<subcol>[a-zA-Z_]+)\)),?|"\
+      r"(?:(?P<ddcal>dd)\((?P<ddsig>\d+),(?P<ddtag>\d+(?:.\d+)?),"\
+      r"(?P<ddtimeint>\d+?),(?P<ddfreqint>\d+?),(?P<ddincol>[a-zA-Z_]+),(?P<ddoutcol>[a-zA-Z_]+)\)),?"
 
 reg_eval = re.compile(reg)
-calrecipe = reg_eval.findall(args.recipe)
+calrecipe = list(reg_eval.finditer(args.recipe))
 if len(calrecipe) == 0:
     raise ValueError("Recipe specification is invalid, see help")
+
 vermeerkat.log.info("Steps to take:")
-for x, sig, intdur, xx, imcol, briggs, xxx in calrecipe:
-    if x:
-        vermeerkat.log.info("\t Calibrate {} with mask set at {} sigma, calibrated at interval of {}".format(
-            "phase" if x == "p" else
-            "delay+phase" if x == "dp" else
-            "ampphase" if x == "ap" else
+for cmd in map(lambda x: x.groupdict(), calrecipe):
+    if cmd['cal']:
+        vermeerkat.log.info("\t DI calibrate {} with mask set at {} sigma, calibrated at interval of {}".format(
+            "phase" if cmd['cal'] == "p" else
+            "delay+phase" if cmd['cal'] == "dp" else
+            "ampphase" if cmd['cal'] == "ap" else
             "UNDEFINED",
-            sig, intdur))
-    elif xx:
-        vermeerkat.log.info("\t Image {} of target fields at briggs weighting {}".format(imcol, briggs))
-    elif xxx:
-        vermeerkat.log.info("\t Subtract last model from corrected data")
+            cmd['s'], cmd['int']))
+    elif cmd['img']:
+        vermeerkat.log.info("\t Image {} of target fields at briggs weighting {}".format(cmd['imcol'], cmd['briggs']))
+    elif cmd['sub']:
+        vermeerkat.log.info("\t Subtract last model from {}".format(cmd['subcol']))
+    elif cmd['ddcal']:
+        vermeerkat.log.info("\t DD calibrate {} with masking set at {} sigma, de tagging at {} sigma with "
+                            "solution interval of [{}, {}] into {}".format(cmd["ddincol"], cmd["ddsig"], cmd["ddtag"],
+                                                                           cmd["ddtimeint"], cmd["ddfreqint"], cmd["ddoutcol"]))
     else:
         raise ValueError("Unknown step in recipe")
 
@@ -426,65 +440,6 @@ def finalize_and_split():
            ["backup_selfcal_flags_%d" % ti for ti, t in enumerate(TARGET)]
 
 
-#def sourcefind_and_subtract(lsmfilepostfix="decal1", 
-#               fitspostfix="_final2gc_briggs-0.7.app.restored.fits", 
-#               fitscubepostfix="_final2gc_briggs-0.7.cube.int.restored.fits",
-#               noisemappostfix="_final2gc_briggs-0.7.cube.app.residual.fits", 
-#               modelcubepostfix="_final2gc_briggs-0.7.cube.int.model.fits",
-#               psfpostfix="_final2gc_briggs-0.7.psf.fits",
-#               sigma=[3.0]): #[4.5, 3.0]):
-#    steps = []
-#    for ti, t in enumerate(TARGET):
-#        f = t + lsmfilepostfix
-#        fname = t + fitspostfix
-#        fnamecube = t + fitscubepostfix
-#        recipe.add("cab/pybdsm", "find_sources", {
-#            "detection_image"   : "{0:s}:output".format(fname),
-#            "image"             : "{0:s}:output".format(fnamecube),
-#            "spectralindex_do"  : True,
-#            "outfile"           : "{0:s}-catalog.fits".format(f),
-#            "thresh_pix"        : 15,
-#            "thresh_isl"        : 10,
-#            "port2tigger"       : True,
-#            "clobber"           : True,
-#            "adaptive_rms_box"  : True,
-#        },
-#        input="input",
-#        output="output",
-#        label="sf_{0:s}:: Find sources in 1gc image".format(t))
-#        steps.append("sf_{0:s}".format(t))
-#        recipe.add("cab/catdagger", "tagdes", {
-#            "noise-map": t + noisemappostfix + ":output",
-#            "min-distance-from-tracking-centre": 300,
-#            "psf-image": t + psfpostfix + ":output",
-#            "remove-tagged-dE-components-from-model-images": t + modelcubepostfix + ":output",
-#            "only-dEs-in-lsm": True,
-#            "input-lsm": "{0:s}-catalog.lsm.html".format(f),
-#            "ds9-reg-file": "{0:s}-ds9-regions.reg".format(t),
-#            "ds9-tag-reg-file": "{0:s}-ds9-tag-regions.reg".format(t),
-#            "sigma": sigma[ti]
-#        },
-#        input="input",
-#        output="output",
-#        label="cd_{0:s}:: catdagger".format(t))
-#        steps.append("cd_{0:s}".format(t))
-#        recipe.add("cab/simulator", "subtract_des_from_cleanmodel", {
-#            "msname": "%s.%s.1GC.ms" % (PREFIX, t),
-#            "threads": 32,
-#            "tile-size": 128,
-#            "skymodel": "{0:s}-catalog.lsm.html.de_tagged.lsm.html:output".format(f),
-#            "column": "MODEL_DATA",
-#            "input-column": "MODEL_DATA",
-#            "beam-files-pattern": "'MeerKAT_VBeam_10MHz_53Chans_$(corr)_$(reim).fits'",
-#            "parallactic-angle-rotation": True,
-#            "mode": "subtract"
-#        },
-#        input="input",
-#        output="output",
-#        label="sub_{0:s}:: Subtract dE sources from MODEL_DATA".format(t))
-#        steps.append("sub_{0:s}".format(t))
-#    return steps
-#
 #def blcalibrate(incol="CORRECTED_DATA", 
 #              calincol="CORRECTED_DATA",
 #              outcol="CORRECTED_DATA", 
@@ -524,144 +479,93 @@ def finalize_and_split():
 #            'out-overwrite': True
 #
 #        }, input=INPUT, output=OUTPUT, label="calibrate %s %s" % (label, t), shared_memory="250g")
-#
-#def decalibrate(incol="SUBTRACTED_DATA", 
-#              calincol="CORRECTED_DATA",
-#              outcol="SUBTRACTED_DATA", 
-#              model="MODEL_WITHOUT_DES",
-#              lsmfilepostfix="decal1", 
-#              des="{0:s}-catalog.lsm.html.de_tagged.lsm.html",
-#              label='decal',
-#              freq_int=[8, 32, 32],
-#              masksig=[45, 45, 45],
-#              solvemode='complex-2x2',
-#              corrtype='sc',
-#              interval=[20, 80, 80],
-#              restore=None):
-#    for ti, t in enumerate(TARGET):
-#        f = t + lsmfilepostfix
-#        def clear_sigma_and_weights(ms):
-#            from pyrap.tables import table as tbl
-#            with tbl(ms, readonly=False) as t:
-#                t.removecols(["WEIGHT_SPECTRUM", "SIGMA_SPECTRUM"])
-#        import os
-#        recipe.add(clear_sigma_and_weights, "clear_sigma_weights_%d" % ti, {
-#            "ms": os.path.join(MSDIR, "%s.%s.1GC.ms" % (PREFIX, t))
-#        },
-#            input=INPUT,
-#            output=OUTPUT,
-#            label="remove spec weight %s %s" % (label, t))
-#
-#        recipe.add('cab/msutils', "spec_weight_%d" % ti, {
-#                "msname"          : "%s.%s.1GC.ms" % (PREFIX, t),
-#                "command"         : 'estimate_weights',
-#                "stats_data"      : 'use_package_meerkat_spec',
-#                "weight_columns"  : ['WEIGHT', 'WEIGHT_SPECTRUM'],
-#                "noise_columns"   : ['SIGMA', 'SIGMA_SPECTRUM'],
-#                "write_to_ms"     : True,
-#                "plot_stats"      : PREFIX + t + '-noise_weights.png',
-#        },
-#            input=INPUT,
-#            output=OUTPUT,
-#            label="spec weight %s %s" % (label, t))
-#        import os
-#        recipe.add("cab/cubical", "calibrate_target_%d" % ti, {
-#                'data-ms': "%s.%s.1GC.ms" % (PREFIX, t),
-#                'data-column': calincol,
-#                'data-time-chunk': 120,
-#                'data-freq-chunk': 10000,
-#                'model-list': "MODEL_DATA+-{1:s}/{0:s}:{1:s}/{0:s}@dE".format(des, os.path.join(os.environ["HOME"], OUTPUT)).format(f),
-#                'model-beam-pattern': "'MeerKAT_VBeam_10MHz_53Chans_$(corr)_$(reim).fits':output",
-#                'model-beam-l-axis' : "X",
-#                'model-beam-m-axis' : "Y",
-#                'weight-column': "WEIGHT",
-#                'flags-apply': "-cubical",
-#                'flags-auto-init': "legacy",
-#                'madmax-enable': True,
-#                'madmax-threshold': [0,10],
-#                'madmax-global-threshold': [0,0],
-#                'sol-jones': 'g,dd',
-#                'sol-min-bl': 110.0,
-#                'sol-max-bl': 0,
-#                'sol-diag-diag': True,
-#                'sol-stall-quorum': 0.95,
-#                'sol-term-iters': [50,50,50],
-#                'out-name': t + str(time.time()),
-#
-#                'out-mode': corrtype,
-#                'out-column': outcol,
-#                'dd-time-int': interval[ti],
-#                'dd-freq-int': freq_int[ti],
-#                'dd-type': solvemode,
-#                'g-type': solvemode,
-#                'g-freq-int': 0,
-#                'g-time-int': interval[ti]*10,
-#                'g-max-iter': 100,
-#                'dd-max-iter': 200,
-#                'dist-ncpu': 64,
-#                'dd-clip-high': 0,
-#                'dd-clip-low': 0,
-#                'dd-fix-dirs': "0",
-#                'out-subtract-dirs': '1:',
-#                'dd-dd-term': True,
-#                'dd-max-prior-error': 0,
-#                'dd-max-post-error': 0,
-#                'dd-delta-chi': 1e-06,
-#                'dd-prop-flags': "always",
-#
-#        #recipe.add("cab/calibrator", "calibrate_target_%d" % ti, {
-#        #    'msname': "%s.%s.1GC.ms" % (PREFIX, t),
-#        #    'column': calincol,
-#        #    'tile-size': 120,
-#        #    'skymodel': "{0:s}:output".format(des).format(f),
-#        #    ###'add-vis-model': True,
-#        #    'Ejones': True,
-#        #    'beam-files-pattern': "MeerKAT_VBeam_10MHz_53Chans_$(xy)_$(reim).fits",
-#        #    'beam-l-axis' : "X",
-#        #    'beam-m-axis' : "Y",
-#        #    'parallactic-angle-rotation': True,
-#        #    'write-flagset': "cubical",
-#        #    'read-legacy-flags': True,
-#        #    'fill-legacy-flags': False,
-#        #    'save-config': "{0:s}.tdl".format(t),
-#        #    'label': t,
-#        #    'prefix': t,
-#        #    'make-plots': False,
-#        #    'output-data': corrtype,
-#        #    'output-column': outcol,
-#
-#        #    'Gjones': True,
-#        #    'Gjones-solution-intervals': [interval[ti], 100000],
-#        #    'Gjones-smoothing-intervals':  [interval[ti] * 15, 100000],
-#        #    'Gjones-matrix-type': solvemode,
-#        #    'Gjones-chisq-clipping': False,
-#        #    'Gjones-ampl-clipping': False,
-#        #    'Gjones-ampl-clipping-high': 1.25,
-#        #    'Gjones-ampl-clipping-low': 0.75,
-#
-#        #    'DDjones': True,
-#        #    'DDjones-tag': 'dE',
-#        #    'DDjones-solution-intervals': [interval[ti], freq_int[ti]],
-#        #    'DDjones-smoothing-intervals':  [interval[ti] * 5, freq_int[ti] * 5],
-#        #    'DDjones-matrix-type': solvemode,
-#        #    'DDjones-niter': 1000,
-#        #    'DDjones-chisq-clipping': False,
-#        #    'DDjones-thresh-sigma': 2.0,
-#        #    'threads': 63,
-#        #    'DDjones-ampl-clipping': False,
-#        #    'DDjones-ampl-clipping-high': 1.7,
-#        #    'DDjones-ampl-clipping-low': 0,
-#        #    'DDjones-niter': 1000,
-#        #    'save-config': "{0:s}.tdl".format(t)
-#        }, input=INPUT, output=OUTPUT, label="calibrate %s %s" % (label, t), shared_memory="250g")
-#
-def subtract_model_from_corrected():
+
+def decalibrate(incol="corrected_data",
+              calincol="corrected_data",
+              outcol="subtracted_data",
+              model="model_data",
+              label='decal',
+              freq_int=8,
+              masksig=45,
+              tagsigma=3.0,
+              solvemode='complex-2x2',
+              corrtype='sc',
+              interval=40,
+              restore=None):
+    steps = []
+    steps += image(incol=incol, label=label, masksig=masksig, restore=restore)
+
+    for ti, t in enumerate(TARGET):
+        recipe.add("cab/catdagger", "auto_tagger_{}_{}".format(label, ti), {
+            'ds9-reg-file': "{}.{}.dE.reg".format(label, ti),
+            'ds9-tag-reg-file': "{}.{}.dE.clusterleads.reg".format(label, ti),
+            'sigma': tagsigma,
+            'min-distance-from-tracking-centre': 350,
+            'noise-map': "{}.app.residual.fits:output".format(t + "_" + label),
+        }, input=INPUT, output=OUTPUT, label="auto_tagger_{}_{}".format(label, ti), shared_memory="250g")
+
+        diconame = "{}.DicoModel".format(t + "_" + label)
+        tagregs = "{}.{}.dE.reg".format(label, ti)
+        recipe.add("cab/cubical", "de_calibrate_{}_{}".format(label, ti), {
+                'data-ms': DATASET,
+                'data-column': calincol,
+                'dist-nworker': args.ncubical_workers,
+                'dist-nthread': args.ncubical_workers,
+                'dist-max-chunks': args.ncubical_workers,
+                'data-time-chunk': interval*int(min(1, np.sqrt(args.ncubical_workers))),
+                'data-freq-chunk': freq_int*int(min(1,np.sqrt(args.ncubical_workers))),
+                'model-list': spf("MODEL_DATA+-{{}}{}@{{}}{}:{{}}{}@{{}}{}".format(diconame, tagregs, diconame, tagregs),
+                                  "output", "output", "output", "output"),
+                #'model-beam-pattern': "'MeerKAT_VBeam_10MHz_53Chans_$(corr)_$(reim).fits':output",
+                #'model-beam-l-axis' : "X",
+                #'model-beam-m-axis' : "Y",
+                'weight-column': "WEIGHT",
+                'flags-apply': "-cubical",
+                'flags-auto-init': "legacy",
+                'madmax-enable': False,
+                'madmax-threshold': [0,0,10],
+                'madmax-global-threshold': [0,0],
+                'sol-jones': 'g,dd',
+                'sol-min-bl': 110.0,
+                'sol-max-bl': 0,
+                'sol-stall-quorum': 0.95,
+                'sol-term-iters': [50,90,50,90],
+                'out-name': t + str(time.time()),
+
+                'out-mode': corrtype,
+                'out-column': outcol,
+                'dd-time-int': interval,
+                'dd-freq-int': freq_int,
+                'dd-type': solvemode,
+                'g-type': solvemode,
+                'g-freq-int': 0,
+                'g-time-int': interval,
+                'g-max-iter': 100,
+                'g-update-type': "phase-diag",
+                'dd-max-iter': 200,
+                'dd-clip-high': 0,
+                'dd-clip-low': 0,
+                'dd-fix-dirs': "0",
+                'out-subtract-dirs': '1:',
+                'dd-dd-term': True,
+                'dd-max-prior-error': 0,
+                'dd-max-post-error': 0,
+                'degridding-NDegridBand': args.mfs_predictbands,
+                'degridding-MaxFacetSize': 0.05
+        }, input=INPUT, output=OUTPUT, label="de_calibrate_{}_{}".format(label, ti), shared_memory="250g")
+    steps += [
+        "auto_tagger_{}_{}".format(label, ti),
+        "de_calibrate_{}_{}".format(label, ti)
+    ]
+    return steps
+
+def subtract_model_from_corrected(colname="CORRECTED_DATA"):
     steps = []
     recipe.add("cab/msutils", "subtract", {
                 "command": 'sumcols',
                 "msname":  DATASET,
                 "colname":  "SUBTRACTED_DATA",
-                "col1": "CORRECTED_DATA",
+                "col1": colname,
                 "col2": "MODEL_DATA",
                 "subtract": True
     }, input=INPUT, output=OUTPUT, label="subtract_mod_from_corr")
@@ -671,24 +575,38 @@ def subtract_model_from_corrected():
 def define_steps():
     STEPS = []
     initcal = True
-    for xi, (x, sig, intdur, xx, imcol, briggs, xxx) in enumerate(calrecipe):
-        if x in ["p", "ap", "dp"]:
+    #for xi, (x, sig, intdur, xx, imcol, briggs, xxx) in enumerate(calrecipe):
+    for xi, cmd in enumerate(map(lambda x: x.groupdict(), calrecipe)):
+        if cmd["cal"]:
            STEPS += calibrate(incol="DATA" if initcal else "CORRECTED_DATA",
                               label='calcycle_{}'.format(xi),
-                              masksig=int(sig),
-                              corrtype=x,
-                              interval=intdur,
+                              masksig=int(cmd["s"]),
+                              corrtype=cmd["cal"],
+                              interval=cmd["int"],
                               restore=None)
            initcal = False
-        elif xx in ["i"]:
-            STEPS += image(incol=imcol.strip(),
-                            label='image_{}'.format(xi),
-                            tmpimlabel="_image_{}".format(xi),
-                            briggs=float(briggs),
-                            do_mask=False,
-                            weight_col="WEIGHT")
-        elif xxx in ["s"]:
-            STEPS += subtract_model_from_corrected()
+        elif cmd["img"]:
+            STEPS += image(incol=cmd["imcol"].strip(),
+                           label='image_{}'.format(xi),
+                           tmpimlabel="_image_{}".format(xi),
+                           briggs=float(cmd["briggs"]),
+                           do_mask=False,
+                           weight_col="WEIGHT")
+        elif cmd["sub"]:
+            STEPS += subtract_model_from_corrected(colname=cmd["subcol"].strip())
+        elif cmd['ddcal']:
+            STEPS += decalibrate(incol=cmd["ddincol"].strip(),
+                        calincol=cmd["ddincol"].strip(),
+                        outcol=cmd["ddoutcol"].strip(),
+                        model="MODEL_DATA",
+                        label='decal_{}'.format(xi),
+                        freq_int=int(cmd["ddfreqint"]),
+                        masksig=int(cmd["ddsig"]),
+                        tagsigma=float(cmd["ddtag"]),
+                        solvemode='complex-diag',
+                        corrtype='sr',
+                        interval=int(cmd["ddtimeint"]),
+                        restore=None)
         else:
             raise ValueError("Only accepts p, ap, dp, i or s in recipe")
 
