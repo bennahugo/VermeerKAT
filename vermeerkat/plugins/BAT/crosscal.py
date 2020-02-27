@@ -901,7 +901,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
 
 def finalize_and_split():
     for ti, t in enumerate(TARGET):
-        recipe.add("cab/casa_mstransform", "split_%d" % ti, {
+        recipe.add("cab/casa_oldsplit", "split_%d" % ti, {
             "vis": ZEROGEN_DATA,
             "field": ",".join([FDB[t]]),
             "outputvis": FIRSTGEN_DATA[ti]

@@ -33,7 +33,7 @@ parser.add_argument('--clip_delays', dest='clip_delays', default=1, type=float,
                     help="Clip delays above this absolute in nanoseconds")
 parser.add_argument('--mfs_bands', dest='mfs_bands', default=4, type=int,
                     help="MFS bands to use during imaging (default 8)")
-parser.add_argument('--mfs_predictbands', dest='mfs_predictbands', default=10, type=int,
+parser.add_argument('--mfs_predictbands', dest='mfs_predictbands', default=15, type=int,
                     help="Number of predict bands to use during imaging (default 10)")
 parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
@@ -104,7 +104,7 @@ REFANT = args.ref_ant
 vermeerkat.log.info("Reference antenna {0:s} to be used throughout".format(REFANT))
 
 reg = r"(?:(?P<cal>p|dp|ap)\((?P<s>\d+),(?P<int>\d+s?)\)),?|"\
-      r"(?:(?P<img>i)\((?P<imcol>[a-zA-Z_]+),(?P<briggs>\d+(?:.\d+)?)),?|"\
+      r"(?:(?P<img>i)\((?P<imcol>[a-zA-Z_]+),(?P<briggs>[+-]?\d+(?:.\d+)?)),?|"\
       r"(?:(?P<sub>s)\((?P<subcol>[a-zA-Z_]+)\)),?|"\
       r"(?:(?P<ddcal>dd)\((?P<ddsig>\d+),(?P<ddtag>\d+(?:.\d+)?),"\
       r"(?P<ddtimeint>\d+?),(?P<ddfreqint>\d+?),(?P<ddincol>[a-zA-Z_]+),(?P<ddoutcol>[a-zA-Z_]+)\)),?"
@@ -167,6 +167,7 @@ def image(incol="DATA",
           taper_outer_cut=1500, #meters
           taper_gamma=200,
           rime_forward=None,
+          model_data="MODEL_DATA",
           weight_col="WEIGHT"):
     steps = []
     for ti, t in enumerate(TARGET):
@@ -193,13 +194,14 @@ def image(incol="DATA",
             "Deconv-PeakFactor": 0.25,
             "Deconv-Mode": "Hogbom",
             "Deconv-MaxMinorIter": 50000,
+            "Hogbom-PolyFitOrder": 6,
             "Deconv-Gain": 0.1,
             "Deconv-FluxThreshold": 1.0e-6,
             "Deconv-AllowNegative": True,
             "Log-Boring": True,
             "Log-Memory": True,
             "RIME-ForwardMode": sdm.dismissable(rime_forward),
-            "Predict-ColName": "MODEL_DATA",
+            "Predict-ColName": model_data,
             "Predict-FromImage": sdm.dismissable(t + restore + ":output" if restore is not None else restore),
         }
         if do_taper:
@@ -512,15 +514,15 @@ def decalibrate(incol="corrected_data",
                 'dist-nworker': args.ncubical_workers,
                 'dist-nthread': args.ncubical_workers,
                 'dist-max-chunks': args.ncubical_workers,
-                'data-time-chunk': interval*int(min(1, np.sqrt(args.ncubical_workers))),
-                'data-freq-chunk': freq_int*int(min(1,np.sqrt(args.ncubical_workers))),
+                'data-time-chunk': interval*int(min(1, args.ncubical_workers)),
+                'data-freq-chunk': 0,
                 'model-list': spf("MODEL_DATA+-{{}}{}@{{}}{}:{{}}{}@{{}}{}".format(diconame, tagregs, diconame, tagregs),
                                   "output", "output", "output", "output"),
                 #'model-beam-pattern': "'MeerKAT_VBeam_10MHz_53Chans_$(corr)_$(reim).fits':output",
                 #'model-beam-l-axis' : "X",
                 #'model-beam-m-axis' : "Y",
                 'weight-column': "WEIGHT",
-                'flags-apply': "-cubical",
+                'flags-apply': "FLAG",
                 'flags-auto-init': "legacy",
                 'madmax-enable': False,
                 'madmax-threshold': [0,0,10],
@@ -534,6 +536,8 @@ def decalibrate(incol="corrected_data",
 
                 'out-mode': corrtype,
                 'out-column': outcol,
+                'out-model-column': "MODEL_OUT",
+                'log-verbose': "solver=2",
                 'dd-time-int': interval,
                 'dd-freq-int': freq_int,
                 'dd-type': solvemode,
@@ -548,10 +552,14 @@ def decalibrate(incol="corrected_data",
                 'dd-fix-dirs': "0",
                 'out-subtract-dirs': '1:',
                 'dd-dd-term': True,
-                'dd-max-prior-error': 0,
-                'dd-max-post-error': 0,
+                'dd-max-prior-error': 0.35,
+                'dd-max-post-error': 0.35,
+                'g-clip-high': 0,
+                'g-clip-low': 0,
+                'g-max-prior-error': 0.35,
+                'g-max-post-error': 0.35,
                 'degridding-NDegridBand': args.mfs_predictbands,
-                'degridding-MaxFacetSize': 0.05
+                'degridding-MaxFacetSize': 0.15
         }, input=INPUT, output=OUTPUT, label="de_calibrate_{}_{}".format(label, ti), shared_memory="250g")
     steps += [
         "auto_tagger_{}_{}".format(label, ti),
@@ -591,6 +599,7 @@ def define_steps():
                            tmpimlabel="_image_{}".format(xi),
                            briggs=float(cmd["briggs"]),
                            do_mask=False,
+                           model_data="None",
                            weight_col="WEIGHT")
         elif cmd["sub"]:
             STEPS += subtract_model_from_corrected(colname=cmd["subcol"].strip())
