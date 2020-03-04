@@ -13,7 +13,7 @@ This is the home of the VermeerKAT pipeline. The goal of this project is two-fol
  - to combine the various transfer, polarization and self calibration pipelines that I have laying around and implemented in the SKA-SA fleeting pol pipeline.
  - to implement a semi-interactive pipelining framework
 
-Currently the pipeline does flagging, transfer calibration, polarization calibration and 2GC self-calibration. The various tasks are available through the ```vermeerkat``` wrapper. Use ```vermeerkat --help```
+Currently the pipeline does flagging, transfer calibration, polarization calibration and 3GC self-calibration. The various tasks are available through the ```vermeerkat``` wrapper. Use ```vermeerkat --help```
 
 # Functionality
 The Basic Apply Transfer (BAT) pipeline is feature complete. The pipeline uses the RARG tricolour flagger in combination with CASA and WSClean to perform transfer calibration (1GC). BAT can be invoked through:
