@@ -46,3 +46,10 @@ vermeerkat selfcal --help
 # Installation
 You need to have casacore-data installed on your system. 
 The package should be installed via pip, preferably into a virtual environment
+
+# Example results
+Here is full 800 MHz Triangulum Australis from MeerKAT ROACH II 16 antenna data (AR. 1.5):
+![](https://raw.githubusercontent.com/ska-sa/vermeerkat/master/examples/J1638.2-6420.png)
+<p align="center">
+ <i> ROACH II MK16 Triangulum Australis low mass cluster with patch-based (marked in yellow convex hull) dE calibration applied through CubiCal (https://github.com/ratt-ru/CubiCal.git) </i>
+</p>
