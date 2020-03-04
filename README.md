@@ -31,12 +31,12 @@ A known issue with MeerKAT data is that both Q and V is flipped in sign with res
 
 The Introspect self-calibration pipeline is a configurable self-calibration pipeline with capacity to apply delay, phase and amplitude direction dependent self-calibration using CASA, CubiCal and DDFacet. A recipe can be specified as follows:
 ```
-p(35,256s),p(25,64s),dp(15,16s),ap(7,16s),i(CORRECTED_DATA,0.0),s,i(SUBTRACTED_DATA,0.0)
+p(35,256s),p(25,64s),dp(15,16s),ap(7,16s),i(CORRECTED_DATA,0.0),s(CORRECTED_DATA),i(SUBTRACTED_DATA,0.0)
 ```
 
-- Available options for cal are p - phase, dp - delay+phase, ap - ampphase with parameters for mask sigma and solution interval.
+- Available options for cal are dd - direction dependent (phase plus frequency dependent dE terms per detected region), p - phase, dp - delay+phase, ap - ampphase with parameters for mask sigma and solution interval.
 - Available options for im are currently only i with customization of image column and robust weighting.
-- s subtracts MODEL_DATA from CORRECTED_DATA to form SUBTRACTED_DATA for all fields.
+- s subtracts MODEL_DATA from (user specifyable) CORRECTED_DATA to form SUBTRACTED_DATA for all fields.
 - Available options for 'dd' direction dependent cal are currently masking sigma of the model image, tagging threshold, solution interval in time integraions (NOT seconds), frequency integration in channels, input column and output column (need not exist)
 
 Full help is available by running
