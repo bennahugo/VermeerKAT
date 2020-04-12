@@ -61,7 +61,11 @@ parser.add_argument("--imaging_data_chunk_hours", dest="imaging_data_chunk_hours
                     help="Chunking hours (default: 0.05 hours)")
 parser.add_argument("--ncubical_workers", dest="ncubical_workers", default=25, type=int,
                     help="Number of cubical workers (default: 25)")
-
+parser.add_argument("--cubical_split_DI_bandwidth", dest="cubical_split_DI_bandwidth",
+                    action="store_true",
+                    help="Split the fractional bandwidth into chunks the size of the DD frequency solution bin "
+                         "for the DI case as well. By default the DI phase gain is frequency independent. "
+                         "This chunks up the data much finer and may help eleviate memory pressure.")
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -514,8 +518,10 @@ def decalibrate(incol="corrected_data",
                 'dist-nworker': args.ncubical_workers,
                 'dist-nthread': args.ncubical_workers,
                 'dist-max-chunks': args.ncubical_workers,
-                'data-time-chunk': interval*int(min(1, args.ncubical_workers)),
-                'data-freq-chunk': 0,
+                'data-time-chunk': interval*int(min(1, args.ncubical_workers)) if not args.cubical_split_DI_bandwidth else \
+                                   interval*int(min(1, np.sqrt(args.ncubical_workers))),
+                'data-freq-chunk': 0 if not args.cubical_split_DI_bandwidth else \
+                                   freq_int*int(min(1, np.sqrt(args.ncubical_workers))),
                 'model-list': spf("MODEL_DATA+-{{}}{}@{{}}{}:{{}}{}@{{}}{}".format(diconame, tagregs, diconame, tagregs),
                                   "output", "output", "output", "output"),
                 #'model-beam-pattern': "'MeerKAT_VBeam_10MHz_53Chans_$(corr)_$(reim).fits':output",
