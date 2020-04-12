@@ -31,7 +31,7 @@ class DelayedFileHandler(logging.handlers.MemoryHandler):
         self._delay = delay
         self.setTarget(logging.FileHandler(filename))
         if not delay:
-			self.flush()
+           self.flush()
 
 def create_logger():
     """ Create a console logger """
