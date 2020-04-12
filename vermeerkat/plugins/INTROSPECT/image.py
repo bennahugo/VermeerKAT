@@ -31,7 +31,7 @@ parser.add_argument('msprefix', metavar='<measurement set name prefix>',
                          'path prefix')
 parser.add_argument('--clip_delays', dest='clip_delays', default=1, type=float,
                     help="Clip delays above this absolute in nanoseconds")
-parser.add_argument('--mfs_bands', dest='mfs_bands', default=4, type=int,
+parser.add_argument('--mfs_bands', dest='mfs_bands', default=15, type=int,
                     help="MFS bands to use during imaging (default 8)")
 parser.add_argument('--mfs_predictbands', dest='mfs_predictbands', default=15, type=int,
                     help="Number of predict bands to use during imaging (default 10)")
@@ -61,6 +61,8 @@ parser.add_argument("--imaging_data_chunk_hours", dest="imaging_data_chunk_hours
                     help="Chunking hours (default: 0.05 hours)")
 parser.add_argument("--ncubical_workers", dest="ncubical_workers", default=25, type=int,
                     help="Number of cubical workers (default: 25)")
+parser.add_argument("--ncc", dest="ncc", default=50000, type=int,
+                    help="Number of clean components to use to model the field (default 50k)")
 
 
 args = parser.parse_args(sys.argv[2:])
@@ -193,7 +195,7 @@ def image(incol="DATA",
             "Deconv-RMSFactor": 0,
             "Deconv-PeakFactor": 0.25,
             "Deconv-Mode": "Hogbom",
-            "Deconv-MaxMinorIter": 50000,
+            "Deconv-MaxMinorIter": args.ncc,
             "Hogbom-PolyFitOrder": 6,
             "Deconv-Gain": 0.1,
             "Deconv-FluxThreshold": 1.0e-6,
