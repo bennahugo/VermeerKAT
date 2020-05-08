@@ -49,7 +49,8 @@ parser.add_argument("--recipe", dest="recipe",
                          "s subtracts MODEL_DATA from named datacol to form SUBTRACTED_DATA for all fields. "
                          "Available options for 'dd' direction dependent cal are currently masking sigma of the model image, "
                          "tagging threshold, solution interval in time integraions (NOT seconds), frequency integration in channels, "
-                         "input column and output column (need not exist) "
+                         "input column and output column (need not exist). "
+                         "Available options for maskimg are the same as im, but with a first argument a mask sigma. "
                          "(default: '{}')".format(default_recipe))
 parser.add_argument("--npix", dest="npix", default=8192,
                     help="Number of pixels to use in imaging (default 8192)")
@@ -113,7 +114,8 @@ reg = r"(?:(?P<cal>p|dp|ap)\((?P<s>\d+),(?P<int>\d+s?)\)),?|"\
       r"(?:(?P<img>i)\((?P<imcol>[a-zA-Z_]+),(?P<briggs>[+-]?\d+(?:.\d+)?)),?|"\
       r"(?:(?P<sub>s)\((?P<subcol>[a-zA-Z_]+)\)),?|"\
       r"(?:(?P<ddcal>dd)\((?P<ddsig>\d+),(?P<ddtag>\d+(?:.\d+)?),"\
-      r"(?P<ddtimeint>\d+?),(?P<ddfreqint>\d+?),(?P<ddincol>[a-zA-Z_]+),(?P<ddoutcol>[a-zA-Z_]+)\)),?"
+      r"(?P<ddtimeint>\d+?),(?P<ddfreqint>\d+?),(?P<ddincol>[a-zA-Z_]+),(?P<ddoutcol>[a-zA-Z_]+)\)),?|"\
+      r"(?:(?P<maskimg>maskimg)\((?P<masksig>[+-]?\d+(?:.\d+)?),(?P<maskimcol>[a-zA-Z_]+),(?P<maskbriggs>[+-]?\d+(?:.\d+)?)),?"
 
 reg_eval = re.compile(reg)
 calrecipe = list(reg_eval.finditer(args.recipe))
@@ -131,6 +133,8 @@ for cmd in map(lambda x: x.groupdict(), calrecipe):
             cmd['s'], cmd['int']))
     elif cmd['img']:
         vermeerkat.log.info("\t Image {} of target fields at briggs weighting {}".format(cmd['imcol'], cmd['briggs']))
+    elif cmd['maskimg']:
+        vermeerkat.log.info("\t Mask image {} of target fields at briggs weighting {} at mask sigma {}".format(cmd['maskimcol'], cmd['maskbriggs'], cmd['masksig']))
     elif cmd['sub']:
         vermeerkat.log.info("\t Subtract last model from {}".format(cmd['subcol']))
     elif cmd['ddcal']:
@@ -280,6 +284,7 @@ def image(incol="DATA",
     return steps
 
 previous_caltables = {f: [] for f in TARGET}
+recent_corrected_column = "DATA"
 
 def calibrate(incol="DATA",
               label='initial',
@@ -426,27 +431,38 @@ def calibrate(incol="DATA",
          },
         input=INPUT, output=OUTPUT, label="apply_sols_{}_{}".format(label, ti))
         steps.append("apply_sols_{}_{}".format(label, ti))
-
+        recent_corrected_column = "CORRECTED_DATA"
     return steps
 
-def finalize_and_split():
+def finalize_and_split(column="CORRECTED_DATA"):
+    steps = []
+    if column != "CORRECTED_DATA":
+        recipe.add("cab/msutils", "move_skycorr", {
+                   "command": "copycol",
+                   "fromcol": column,
+                   "tocol": "CORRECTED_DATA",
+                   "msname": DATASET,
+        }, input=INPUT, output=OUTPUT, label="move_split_column_to_corrected")
+        steps += ["move_split_column_to_corrected"]
     for ti, t in enumerate(TARGET):
         recipe.add("cab/casa_split", "split_%d" % ti, {
             "vis": DATASET,
             "field": ",".join([FDB[t]]),
-            "outputvis": "{}_{}_SELFCAL.ms".format(PREFIX, t)
+            "outputvis": "{}_{}_SELFCAL.ms".format(PREFIX, t),
+            "timebin": "8s",
+            "width": 3,
         },
         input=INPUT, output=OUTPUT, label="split_%d" % ti)
+        steps += ["split_%d" % ti]
         recipe.add("cab/casa_flagmanager", "backup_1GC_flags_%d" % ti, {
                    "vis": "{}_{}_SELFCAL.ms".format(PREFIX, t),
                    "mode": "save",
-                   "versionname": "1GC_LEGACY",
-            },
-            input=INPUT, output=OUTPUT, label="backup_1GC_flags_%d" % ti)
+                   "versionname": "2GC_LEGACY",
+        },
+        input=INPUT, output=OUTPUT, label="backup_selfcal_flags_%d" % ti)
+        steps += ["backup_selfcal_flags_%d" % ti]
 
-    return ["split_%d" % ti for ti, t in enumerate(TARGET)] + \
-           ["backup_selfcal_flags_%d" % ti for ti, t in enumerate(TARGET)]
-
+    return steps
 
 #def blcalibrate(incol="CORRECTED_DATA", 
 #              calincol="CORRECTED_DATA",
@@ -569,6 +585,7 @@ def decalibrate(incol="corrected_data",
                 'degridding-NDegridBand': args.mfs_predictbands,
                 'degridding-MaxFacetSize': 0.15
         }, input=INPUT, output=OUTPUT, label="de_calibrate_{}_{}".format(label, ti), shared_memory="250g")
+    recent_corrected_column = outcol
     steps += [
         "auto_tagger_{}_{}".format(label, ti),
         "de_calibrate_{}_{}".format(label, ti)
@@ -586,6 +603,7 @@ def subtract_model_from_corrected(colname="CORRECTED_DATA"):
                 "subtract": True
     }, input=INPUT, output=OUTPUT, label="subtract_mod_from_corr")
     steps.append("subtract_mod_from_corr")
+    recent_corrected_column = "SUBTRACTED_DATA"
     return steps
 
 def define_steps():
@@ -609,6 +627,15 @@ def define_steps():
                            do_mask=False,
                            model_data="None",
                            weight_col="WEIGHT")
+        elif cmd["maskimg"]:
+            STEPS += image(incol=cmd["maskimcol"].strip(),
+                           label='image_{}'.format(xi),
+                           tmpimlabel="_image_{}".format(xi),
+                           briggs=float(cmd["maskbriggs"]),
+                           do_mask=True,
+                           model_data="None",
+                           weight_col="WEIGHT",
+                           masksig=float(cmd["masksig"]))
         elif cmd["sub"]:
             STEPS += subtract_model_from_corrected(colname=cmd["subcol"].strip())
         elif cmd['ddcal']:
@@ -627,7 +654,7 @@ def define_steps():
         else:
             raise ValueError("Only accepts p, ap, dp, i or s in recipe")
 
-    STEPS += finalize_and_split()
+    STEPS += finalize_and_split(recent_corrected_column)
     steps_enabled = OrderedDict()
     for s in STEPS: steps_enabled[s] = True
     return steps_enabled
