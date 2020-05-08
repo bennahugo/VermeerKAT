@@ -69,6 +69,9 @@ parser.add_argument("--cubical_split_DI_bandwidth", dest="cubical_split_DI_bandw
                     help="Split the fractional bandwidth into chunks the size of the DD frequency solution bin "
                          "for the DI case as well. By default the DI phase gain is frequency independent. "
                          "This chunks up the data much finer and may help eleviate memory pressure.")
+parser.add_argument("--dont_prompt", dest="dont_prompt", 
+                    action="store_true",
+                    help="Don't prompt the user for confirmation of parameters")
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -149,7 +152,7 @@ try:
 except NameError:
     pass
 
-while True:
+while not args.dont_prompt:
     r = input("Is this configuration correct? (Y/N) >> ").lower()
     if r == "y":
         break
@@ -663,3 +666,9 @@ def compile_and_run(STEPS):
     if len(STEPS) != 0:
         recipe.run(STEPS)
 
+def main():
+    steps = define_steps()
+    compile_and_run(list(steps.keys()))
+
+if __name__ == "__main__":
+    main()

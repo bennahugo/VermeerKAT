@@ -13,16 +13,17 @@ def STEPS():
         from vermeerkat.plugins.INTROSPECT import image
         __STEPS = image.define_steps()
     return __STEPS, image.compile_and_run
+NONCURSES = vermeerkat.NONCURSES
+if not NONCURSES:
+    try:
+        event_loop.STEPS, event_loop.RUN = STEPS()
+        event_loop().run()
+    except KeyboardInterrupt:
+        vermeerkat.log.info("Caught CTRL-C. Breaking")
 
-try:
-    event_loop.STEPS, event_loop.RUN = STEPS()
-    event_loop().run()
-except KeyboardInterrupt:
-    vermeerkat.log.info("Caught CTRL-C. Breaking")
-
-print("Goodbye!")
+    print("Goodbye!")
 
 import atexit
 def cleanupshell():
     curses.endwin()
-atexit.register(cleanupshell)
+NONCURSES or atexit.register(cleanupshell)

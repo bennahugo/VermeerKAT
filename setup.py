@@ -10,7 +10,7 @@ except ImportError as e:
 requirements = [
  'stimela>=0.3.1',
  'astropy>=2.0.11',
- 'stimela @ git+https://github.com/ratt-ru/stimela.git@28457504c4a5d3c39612e13b4339a3d0b496c150',
+ 'stimela>=1.3.1',
  'numpy>=1.13.1',
  'scipy>=0.19.1',
  'nbconvert>=5.3.1',

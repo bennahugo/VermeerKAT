@@ -30,6 +30,9 @@ parser.add_argument("--containerization", dest="containerization", default="dock
 parser.add_argument("--transfer_to_existing", dest="transfer_to_existing", type=str, default=None,
                     help="Transfer to existing dataset (specified as prefix) instead of creating a new dataset. "
                          "This can be used to transfer leakage solutions to self cal'd targets for instance")
+parser.add_argument("--dont_prompt", dest="dont_prompt", 
+                    action="store_true",
+                    help="Don't prompt the user for confirmation of parameters")
 
 args = parser.parse_args(sys.argv[2:])
 INPUT = args.input_directory
@@ -147,7 +150,7 @@ try:
 except NameError:
     pass
 
-while True:
+while not args.dont_prompt:
     r = input("Is this configuration correct? (Y/N) >> ").lower()
     if r == "y":
         break
@@ -411,3 +414,9 @@ def define_steps():
         checked_opts[o] = o not in disabled_opts
     return checked_opts
 
+def main():
+    steps = define_steps()
+    compile_and_run(list(steps.keys()))
+
+if __name__ == "__main__":
+    main()
