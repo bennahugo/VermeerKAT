@@ -36,7 +36,7 @@ def generate_calsolutions_report(rep, output="output", calprefix="COMBINED"):
     sols_rep.cells[0]['source'] = '\n'.join(map(__customize, sols_rep.cells[0]['source'].split('\n')))
 
     # roll
-    ep = ExecutePreprocessor(timeout=None, kernel_name='python2')
+    ep = ExecutePreprocessor(timeout=None, kernel_name='python3')
     try:
         ep.preprocess(sols_rep, {'metadata': {'path': os.path.abspath(os.path.dirname(__file__))}})
     except CellExecutionError: # reporting error is non-fatal

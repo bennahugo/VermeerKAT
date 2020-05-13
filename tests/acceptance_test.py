@@ -22,7 +22,8 @@ class mk_reduce(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         unittest.TestCase.tearDownClass()
-        shutil.rmtree(os.path.join("msdir"))
+        if os.path.exists("msdir"):
+            shutil.rmtree(os.path.join("msdir"))
 
     def tearDown(self):
         unittest.TestCase.tearDown(self)
@@ -64,51 +65,21 @@ class mk_reduce(unittest.TestCase):
         elif ret != 0:
             raise RuntimeError("VermeerKAT exited with non-zero return code %d" % ret)
 
-#    def test_fieldlistr(self):
-#        args = ["vermeerkat",
-#                "fieldlist", 
-#                "vermeerkat_test"
-#                ]
-#        self.callvermeerkat(args)
-#    
-#    def test_antlistr(self):
-#        args = ["vermeerkat",
-#                "antlist", 
-#                "vermeerkat_test"
-#                ]
-#        self.callvermeerkat(args)
-#
-#    def test_transfer(self):
-#        args = ["vermeerkat",
-#                "transfer", 
-#                "--noncurses",
-#                "--containerization", test_container_tech,
-#                "--gc", "J1120-2508", 
-#                "--bp", "J1939-6342", 
-#                "--altcal", "J1331+3030", 
-#                "--tar", "A1300",
-#                "--ref_ant", "m013", 
-#                "--time_sol_interval", "inf",
-#                "--dont_prompt",
-#                "--skip_final_1GC",
-#                "vermeerkat_test"
-#                ]
-#        self.callvermeerkat(args)
-#        args = ["vermeerkat", 
-#                "selfcal", 
-#                "A1300.vermeerkat_test.1gc",
-#                "--noncurses",
-#                "--ref_ant", "m013",
-#                "--ncc", "1500",
-#                "--tar", "A1300",
-#                "--containerization", test_container_tech, 
-#                "--ncubical_workers", "20",
-#                "--nfacet", "10",
-#                "--dont_prompt",
-#                "--recipe", "dp(35,16s),dd(45,4.0,32,64,CORRECTED_DATA,DE_DATA)"]
-#        self.callvermeerkat(args)
-#
-    def test_poltransfer(self):
+    def test_fieldlistr(self):
+        args = ["vermeerkat",
+                "fieldlist", 
+                "vermeerkat_test"
+                ]
+        self.callvermeerkat(args)
+    
+    def test_antlistr(self):
+        args = ["vermeerkat",
+                "antlist", 
+                "vermeerkat_test"
+                ]
+        self.callvermeerkat(args)
+
+    def test_transfer(self):
         args = ["vermeerkat",
                 "transfer", 
                 "--noncurses",
@@ -117,7 +88,37 @@ class mk_reduce(unittest.TestCase):
                 "--bp", "J1939-6342", 
                 "--altcal", "J1331+3030", 
                 "--tar", "A1300",
-                "--ref_ant", "m013", 
+                "--ref_ant", "m060", 
+                "--time_sol_interval", "inf",
+                "--dont_prompt",
+                "--skip_final_1GC",
+                "vermeerkat_test"
+                ]
+        self.callvermeerkat(args)
+        args = ["vermeerkat", 
+                "selfcal", 
+                "A1300.vermeerkat_test.1gc",
+                "--noncurses",
+                "--ref_ant", "m060",
+                "--ncc", "1500",
+                "--tar", "A1300",
+                "--containerization", test_container_tech, 
+                "--ncubical_workers", "4",
+                "--nfacet", "10",
+                "--dont_prompt",
+                "--recipe", "dp(35,16s),dd(45,9.0,8,32,CORRECTED_DATA,DE_DATA)"]
+        self.callvermeerkat(args)
+
+    def test_xtransfer(self):
+        args = ["vermeerkat",
+                "transfer", 
+                "--noncurses",
+                "--containerization", test_container_tech,
+                "--gc", "J1120-2508", 
+                "--bp", "J1939-6342", 
+                "--altcal", "J1331+3030", 
+                "--tar", "A1300",
+                "--ref_ant", "m060", 
                 "--time_sol_interval", "inf",
                 "--dont_prompt",
                 "--skip_final_1GC",
@@ -131,7 +132,7 @@ class mk_reduce(unittest.TestCase):
                 "--containerization", test_container_tech,
                 "--bp", "J1939-6342",
                 "--polcal", "J1331+3030", 
-                "--refant", "0", 
+                "--refant", "m060", 
                 "vermeerkat_test",
                 "--transfer_to_existing",
                 "A1300.vermeerkat_test.1gc"]

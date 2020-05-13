@@ -537,7 +537,7 @@ def decalibrate(incol="corrected_data",
 
         diconame = "{}.DicoModel".format(t + "_" + label)
         tagregs = "{}.{}.dE.reg".format(label, ti)
-        recipe.add("cab/cubical", "de_calibrate_{}_{}".format(label, ti), {
+        recipe.add("cab/cubical_ddf", "de_calibrate_{}_{}".format(label, ti), {
                 'data-ms': DATASET,
                 'data-column': calincol,
                 'dist-nworker': args.ncubical_workers,
