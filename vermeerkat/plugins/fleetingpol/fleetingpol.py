@@ -165,7 +165,7 @@ recipe = stimela.Recipe('MEERKAT FleetingPol: Interferometric boresight polariza
                         singularity_image_dir=os.environ.get("SINGULARITY_PULLFOLDER", ""),
                         JOB_TYPE=args.containerization)
 
-recipe.add("cab/casa_oldsplit", "split_avg_data", {
+recipe.add("cab/casa_split", "split_avg_data", {
     "vis": COMB_MS,
     "outputvis": BP_CAL_MS,
     "datacolumn": "corrected",

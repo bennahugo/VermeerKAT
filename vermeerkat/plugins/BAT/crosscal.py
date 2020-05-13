@@ -224,8 +224,10 @@ def prepare_data():
                    "nrows_chunk": 15000,
                    "scan_to_scan_threshold": 1.5,
                    "antenna_to_group_threshold": 4,
+                   "output_dir": "./:output",
                    "nio_threads": 1,
                    "nproc_threads": 32,
+                   "dpi": 80,
                   },input=INPUT, output=OUTPUT, label="flag_autopower")
         recipe.add("cab/casa_flagdata", "flag_autocorrelations", {
                    "vis": ZEROGEN_DATA,

@@ -64,6 +64,8 @@ parser.add_argument("--ncubical_workers", dest="ncubical_workers", default=25, t
                     help="Number of cubical workers (default: 25)")
 parser.add_argument("--ncc", dest="ncc", default=50000, type=int,
                     help="Number of clean components to use to model the field (default 50k)")
+parser.add_argument("--nfacet", dest="nfacet", default=4, type=int,
+                    help="Number of facets to use per direction (default 4)")
 parser.add_argument("--cubical_split_DI_bandwidth", dest="cubical_split_DI_bandwidth",
                     action="store_true",
                     help="Split the fractional bandwidth into chunks the size of the DD frequency solution bin "
@@ -191,7 +193,7 @@ def image(incol="DATA",
             "Selection-Field": int(FDB[t]),
             "Output-Mode": "Clean" if not restore else "Predict",
             "Output-Name": t + tmpimlabel,
-            "Output-Images": "all",
+            "Output-Images": "dDmMcCrRiInNSoekz",
             "Output-Cubes": "all",
             "Image-NPix": args.npix,
             "Image-Cell": args.cellsize,
@@ -294,9 +296,10 @@ def calibrate(incol="DATA",
               masksig=45,
               corrtype='p',
               interval='int',
+              nfacets=4,
               restore=None):
     steps = []
-    steps += image(incol=incol, label=label, masksig=masksig, restore=restore)
+    steps += image(incol=incol, label=label, masksig=masksig, restore=restore, nfacets=nfacets)
     for ti, t in enumerate(TARGET):
         if corrtype == "p":
             caltable_label = "{}_{}_{}".format(label, t, "Gp")
@@ -515,12 +518,13 @@ def decalibrate(incol="corrected_data",
               freq_int=8,
               masksig=45,
               tagsigma=3.0,
+              nfacets=4,
               solvemode='complex-2x2',
               corrtype='sc',
               interval=40,
               restore=None):
     steps = []
-    steps += image(incol=incol, label=label, masksig=masksig, restore=restore)
+    steps += image(incol=incol, label=label, masksig=masksig, restore=restore, nfacets=nfacets)
 
     for ti, t in enumerate(TARGET):
         recipe.add("cab/catdagger", "auto_tagger_{}_{}".format(label, ti), {
@@ -620,6 +624,7 @@ def define_steps():
                               masksig=int(cmd["s"]),
                               corrtype=cmd["cal"],
                               interval=cmd["int"],
+                              nfacets=args.nfacet,
                               restore=None)
            initcal = False
         elif cmd["img"]:
@@ -629,6 +634,7 @@ def define_steps():
                            briggs=float(cmd["briggs"]),
                            do_mask=False,
                            model_data="None",
+                           nfacets=args.nfacet,
                            weight_col="WEIGHT")
         elif cmd["maskimg"]:
             STEPS += image(incol=cmd["maskimcol"].strip(),
@@ -636,6 +642,7 @@ def define_steps():
                            tmpimlabel="_image_{}".format(xi),
                            briggs=float(cmd["maskbriggs"]),
                            do_mask=True,
+                           nfacets=args.nfacet,
                            model_data="None",
                            weight_col="WEIGHT",
                            masksig=float(cmd["masksig"]))
@@ -650,6 +657,7 @@ def define_steps():
                         freq_int=int(cmd["ddfreqint"]),
                         masksig=int(cmd["ddsig"]),
                         tagsigma=float(cmd["ddtag"]),
+                        nfacets=args.nfacet,
                         solvemode='complex-diag',
                         corrtype='sr',
                         interval=int(cmd["ddtimeint"]),
