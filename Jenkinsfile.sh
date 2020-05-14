@@ -1,5 +1,4 @@
 set -e
-set -u
 
 echo "----------------------------------------------"
 echo "$JOB_NAME build $BUILD_NUMBER"
