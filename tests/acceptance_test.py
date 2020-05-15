@@ -6,7 +6,7 @@ from nose.tools import timed
 import shutil
 import time
 
-test_container_tech="singularity"
+test_container_tech="docker"
 
 class mk_reduce(unittest.TestCase):
     @classmethod
