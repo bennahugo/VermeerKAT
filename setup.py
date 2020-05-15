@@ -8,7 +8,7 @@ except ImportError as e:
       from distutils.core import setup
 
 requirements = [
- 'stimela @ git+https://github.com/ratt-ru/stimela.git@25c24fef69f5f00171f75ac4f424e3e4412c6613',
+ 'stimela >= 1.0.0',
  'astropy>=2.0.11',
  'stimela>=1.3.1',
  'numpy>=1.13.1',
