@@ -28,6 +28,6 @@ source $PROJECTS_DIR/venv/bin/activate
 pip install $PROJECTS_DIR/VermeerKAT
 pip install nose
 
-stimela pull -s
+stimela pull -d
 python -m nose $PROJECTS_DIR/VermeerKAT/tests/acceptance_test.py || rm -rf $SINGULARITY_PULLFOLDER
 rm -rf $SINGULARITY_PULLFOLDER
