@@ -69,6 +69,9 @@ parser.add_argument("--containerization", dest="containerization", default="dock
                     help="Containerization technology to use. See your stimela installation for options")
 parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", action="store_true",
                     help="Image gain calibrators")
+parser.add_argument("--dont_prompt", dest="dont_prompt",
+                    action="store_true",
+                    help="Don't prompt the user for confirmation of parameters")
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -165,7 +168,7 @@ try:
 except NameError:
     pass
 
-while True:
+while not args.dont_prompt:
     r = input("Is this configuration correct? (Y/N) >> ").lower()
     if r == "y":
         break
@@ -221,8 +224,10 @@ def prepare_data():
                    "nrows_chunk": 15000,
                    "scan_to_scan_threshold": 1.5,
                    "antenna_to_group_threshold": 4,
+                   "output_dir": "./:output",
                    "nio_threads": 1,
                    "nproc_threads": 32,
+                   "dpi": 80,
                   },input=INPUT, output=OUTPUT, label="flag_autopower")
         recipe.add("cab/casa_flagdata", "flag_autocorrelations", {
                    "vis": ZEROGEN_DATA,
@@ -945,3 +950,10 @@ def define_steps():
 def compile_and_run(STEPS):
     if len(STEPS) != 0:
         recipe.run(STEPS)
+
+def main():
+    steps = define_steps()
+    compile_and_run(list(steps.keys()))
+
+if __name__ == "__main__":
+    main()

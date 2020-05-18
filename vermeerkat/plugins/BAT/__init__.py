@@ -13,16 +13,16 @@ def STEPS():
         from vermeerkat.plugins.BAT import crosscal
         __STEPS = crosscal.define_steps()
     return __STEPS, crosscal.compile_and_run
-
-try:
-    event_loop.STEPS, event_loop.RUN = STEPS()
-    event_loop().run()
-except KeyboardInterrupt:
-    vermeerkat.log.info("Caught CTRL-C. Breaking")
-
-print("Goodbye!")
+NONCURSES = vermeerkat.NONCURSES
+if not NONCURSES:
+    try:
+        event_loop.STEPS, event_loop.RUN = STEPS()
+        event_loop().run()
+    except KeyboardInterrupt:
+        vermeerkat.log.info("Caught CTRL-C. Breaking")
+    print("Goodbye!")
 
 import atexit
 def cleanupshell():
     curses.endwin()
-atexit.register(cleanupshell)
+NONCURSES or atexit.register(cleanupshell)

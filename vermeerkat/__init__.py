@@ -63,3 +63,4 @@ def remove_log_handler(hndl):
 def add_log_handler(hndl):
     log.addHandler(hndl)
 
+NONCURSES = False

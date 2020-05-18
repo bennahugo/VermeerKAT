@@ -1,4 +1,6 @@
 recursive-include vermeerkat/ *.py
+recursive-include vermeerkat/plugins/ *.py
+recursive-include vermeerkat/plugins/ *.ipynb
 recursive-include vermeerkat/scripts/ *.py
 recursive-include vermeerkat/data *
 recursive-include vermeerkat/bin *.py

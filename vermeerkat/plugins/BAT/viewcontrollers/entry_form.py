@@ -4,6 +4,7 @@ import os
 import types
 import curses
 import pickle
+from builtins import input
 from vermeerkat.plugins.BAT.viewcontrollers.bat_theme import bat_theme
 from vermeerkat.plugins.BAT.viewcontrollers.option_editor import options_form
 from vermeerkat.utils.interruptable_process import interruptable_process
@@ -42,13 +43,9 @@ class entry_form(npyscreen.FormBaseNew):
             entry_form.__pl_proc.join(None)
         except KeyboardInterrupt:
             entry_form.__pl_proc.interrupt()
-        try:
-            input = raw_input
-        except NameError:
-            pass
-        input("Press return to continue...")
-        self.event_loop.switchForm("MAIN")
-
+        finally:
+            input("press return to continue...")
+            self.event_loop.switchForm("MAIN")
 
     def on_edit_pressed(self):
         self.event_loop["OPTIONVIEW"].start_pipeline_next_draw = True

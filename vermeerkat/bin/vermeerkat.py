@@ -25,23 +25,41 @@ def task_alistr():
     # lazy initialize plugin
     import vermeerkat.plugins.ALISTR
 
-def task_transfer():
+def task_transfer(noncurses=False):
+    # lazy initialize plugin   
+    import vermeerkat 
+    if vermeerkat.NONCURSES:
+        from vermeerkat.plugins.BAT.crosscal import main
+        main()
+    else:
+        import vermeerkat.plugins.BAT
+    
+def task_poltransfer(noncurses=False):
     # lazy initialize plugin
-    import vermeerkat.plugins.BAT
+    import vermeerkat 
+    if vermeerkat.NONCURSES:
+        from vermeerkat.plugins.fleetingpol.fleetingpol import main
+        main()
+    else:
+        import vermeerkat.plugins.fleetingpol
 
-def task_poltransfer():
+def task_selfcal(noncurses=False):
     # lazy initialize plugin
-    import vermeerkat.plugins.fleetingpol
-
-def task_selfcal():
-    # lazy initialize plugin
-    import vermeerkat.plugins.INTROSPECT
+    import vermeerkat 
+    if vermeerkat.NONCURSES:
+        from vermeerkat.plugins.INTROSPECT.image import main
+        main()
+    else:
+        import vermeerkat.plugins.INTROSPECT
 
 def main():
     tlparser = create_tlparser()
     tlargs = tlparser.parse_args(sys.argv[1:2])
+    noncurses = "--noncurses" in sys.argv
+    noncurses and sys.argv.pop(sys.argv.index("--noncurses"))
+    vermeerkat.NONCURSES = noncurses
     if tlargs.version:
-        fleetingpol.log.info("VermeerKAT version %s" % vermeerkat.__version__)
+        vermeerkat.log.info("VermeerKAT version %s" % vermeerkat.__version__)
         sys.exit(0)
     if tlargs.command == "transfer":
         task_transfer()

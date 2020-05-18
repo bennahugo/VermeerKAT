@@ -8,9 +8,9 @@ except ImportError as e:
       from distutils.core import setup
 
 requirements = [
- 'stimela>=0.3.1',
+ 'stimela >= 1.0.0',
  'astropy>=2.0.11',
- 'stimela @ git+https://github.com/ratt-ru/stimela.git@28457504c4a5d3c39612e13b4339a3d0b496c150',
+ 'stimela>=1.3.1',
  'numpy>=1.13.1',
  'scipy>=0.19.1',
  'nbconvert>=5.3.1',
@@ -21,7 +21,7 @@ requirements = [
  'curses-menu>=0.5.0',
  'lmfit>=0.9.8',
  'GPy>=1.9.2',
- 'npyscreen>=4.10.5',
+ 'npyscreen @ git+https://github.com/bennahugo/npyscreen.git@04187cb7a4dfbc488311afe6e6ebb9b4876e15d1',
 ]
 
 PACKAGE_NAME = 'vermeerkat'
