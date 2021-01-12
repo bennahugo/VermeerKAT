@@ -193,7 +193,7 @@ def image(incol="DATA",
             "Selection-Field": int(FDB[t]),
             "Output-Mode": "Clean" if not restore else "Predict",
             "Output-Name": t + tmpimlabel,
-            "Output-Images": "dDmMcCrRiInNSoekz",
+            "Output-Images": "dDmMcCrRiInNSoekzpP",
             "Output-Cubes": "all",
             "Image-NPix": args.npix,
             "Image-Cell": args.cellsize,
@@ -537,7 +537,7 @@ def decalibrate(incol="corrected_data",
 
         diconame = "{}.DicoModel".format(t + "_" + label)
         tagregs = "{}.{}.dE.reg".format(label, ti)
-        recipe.add("cab/cubical", "de_calibrate_{}_{}".format(label, ti), {
+        recipe.add("cab/cubical_ddf", "de_calibrate_{}_{}".format(label, ti), {
                 'data-ms': DATASET,
                 'data-column': calincol,
                 'dist-nworker': args.ncubical_workers,
@@ -564,11 +564,11 @@ def decalibrate(incol="corrected_data",
                 'sol-stall-quorum': 0.95,
                 'sol-term-iters': [50,90,50,90],
                 'out-name': t + str(time.time()),
-
+                'out-correct-dir': 0,
                 'out-mode': corrtype,
                 'out-column': outcol,
                 'out-model-column': "MODEL_OUT",
-                'log-verbose': "solver=2",
+                #'log-verbose': "solver=2",
                 'dd-time-int': interval,
                 'dd-freq-int': freq_int,
                 'dd-type': solvemode,

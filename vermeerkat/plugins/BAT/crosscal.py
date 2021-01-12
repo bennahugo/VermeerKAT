@@ -565,11 +565,10 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                 "calmode": "p",
                 "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
                 ##"spw": "0:1.3~1.5GHz",
-                "gaintable": ["%s:output" % ct for ct in [K0, G0, B0]],
-                "gainfield": [
-                    ",".join([FDB[a] for a in ALTCAL]),
-                    FDB[BPCALIBRATOR],
-                    FDB[BPCALIBRATOR]],
+                "gaintable": ["%s:output" % ct for ct in [B0, K0]],
+                "gainfield": [FDB[BPCALIBRATOR],
+                    ",".join([FDB[a] for a in ALTCAL])
+                    ],
                 "interp":["linear,linear","nearest"],
                 "refant": REFANT,
             },
@@ -590,11 +589,10 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
         recipe.add("cab/casa47_applycal", "apply_sols_ac_%s_%s" % (FDB[a], label), {
                 "vis": ZEROGEN_DATA,
                 "field": FDB[a],
-                "gaintable": ["%s:output" % ct for ct in [K0,G0,B0,GA]],
+                "gaintable": ["%s:output" % ct for ct in [B0,K0,GA]],
                 "gainfield": [
+                              ",".join([FDB[BPCALIBRATOR]]),
                               ",".join([FDB[a]]),
-                              ",".join([FDB[BPCALIBRATOR]]),
-                              ",".join([FDB[BPCALIBRATOR]]),
                               ",".join([FDB[a]]),
                              ],
                 "interp": ["linear,linear","nearest","nearest"]
