@@ -39,7 +39,7 @@ setup(name = PACKAGE_NAME,
       entry_points={
           'console_scripts': ['vermeerkat=vermeerkat.bin.vermeerkat:main'],
       },
-      license=["GNU GPL v2"],
+      license="GNU GPL v2",
       classifiers=[
                   "Development Status :: 3 - Alpha",
                   "Intended Audience :: Science/Research",
