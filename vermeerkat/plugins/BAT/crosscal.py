@@ -65,6 +65,12 @@ parser.add_argument('--cal_model', dest='cal_model', default='pks1934-638.lsm',
                     help="Calibrator apparent sky model (tigger lsm format)")
 parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
+parser.add_argument('--rolloff_flags', dest='rolloff_flags',
+                    #band-rolloffs and Milkyway HI line
+                    default='*:850~980MHz,*:1658~1800MHz,*:1419.8~1421.3MHz',
+                    help='Frequency ranges (as per casa flagdata SPW documentation) to apply'
+                         ' flags to prior to calibration. Defaults good for MK wideband L-band,'
+                         ' need to be tweeked for UHF band or narrowband modes')
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
 parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", action="store_true",
@@ -215,7 +221,7 @@ def prepare_data():
         recipe.add("cab/casa_flagdata", "flag_rolloff", {
                    "vis": ZEROGEN_DATA,
                    "mode": "manual",
-                   "spw": "*:850~980MHz,*:1658~1800MHz,*:1419.8~1421.3MHz", #band-rolloffs and Milkyway HI line
+                   "spw": args.rolloff_flags
             },
             input=INPUT, output=OUTPUT, label="flagging_rolloff")
 
