@@ -34,6 +34,13 @@ parser.add_argument("--transfer_to_existing", dest="transfer_to_existing", type=
 parser.add_argument("--dont_prompt", dest="dont_prompt", 
                     action="store_true",
                     help="Don't prompt the user for confirmation of parameters")
+parser.add_argument("--polarized_cal_scans_solve", dest="polarized_cal_scans_solve",
+                    default="",
+                    help="Scans to use when solving for polarization crosshand solutions. Default all.")
+parser.add_argument("--unpolarized_cal_scans_solve", dest="unpolarized_cal_scans_solve",
+                    default="",
+                    help="Scans to use when solving for leakage solutions. Default all.")
+
 
 args = parser.parse_args(sys.argv[2:])
 INPUT = args.input_directory
@@ -229,6 +236,7 @@ recipe.add("cab/casa47_gaincal", "crosshand_delay", {
         "solint": timegain_solint, #one per scan to track movement of the mean
         "combine": "",
         "parang": True,
+        "scan": args.polarized_cal_scans_solve,
         "gaintype": "KCROSS",
 },
 input=INPUT, output=OUTPUT, label="crosshand_delay")
@@ -250,6 +258,7 @@ recipe.add("cab/casa47_polcal", "crosshand_phase_ref", {
         "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
+        "scan": args.polarized_cal_scans_solve,
         "gaintable": ["%s:output" % ct for ct in [KX]],
 },
 input=INPUT, output=OUTPUT, label="crosshand_phase_ref")
@@ -264,6 +273,7 @@ recipe.add("cab/casa47_polcal", "crosshand_phase_freq", {
         "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
+        "scan": args.polarized_cal_scans_solve,
         "gaintable": ["%s:output" % ct for ct in [KX, Xref]],
 },
 input=INPUT, output=OUTPUT, label="crosshand_phase_freq")
@@ -283,6 +293,7 @@ recipe.add("cab/casa47_polcal", "leakage_ref", {
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
         "refant": REFANT,
         #"spw": "0:1.0~1.1ghz",
+        "scan": args.unpolarized_cal_scans_solve,
         "gaintable": ["%s:output" % ct for ct in [KX, Xref, Xf]],
 },
 input=INPUT, output=OUTPUT, label="leakage_ref")
@@ -297,6 +308,7 @@ recipe.add("cab/casa47_polcal", "leakage_freq", {
         "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
+        "scan": args.unpolarized_cal_scans_solve,
         "gaintable": ["%s:output" % ct for ct in [KX, Xref, Xf, Dref]],
 },
 input=INPUT, output=OUTPUT, label="leakage_freq")

@@ -78,8 +78,18 @@ parser.add_argument('--secondpass_flagging_strategy', dest='secondpass_flagging_
                     defailt='mk_rfi_flagging_calibrator_fields_secondpass.yaml',
                     help='Flagging strategy to use for first pass calibrator flagging')
 parser.add_argument('--target_flagging_strategy', dest='target_flagging_strategy',
-                    defailt='mk_rfi_flagging_target_fields_firstpass.yaml',
+                    default='mk_rfi_flagging_target_fields_firstpass.yaml',
                     help='Flagging strategy to use for target flagging')
+parser.add_argument('--gaincal_scan_selection', dest='gaincal_scan_selection',
+                    default="",
+                    help='Gaincal and altcal scans to use while calibrating (note not applying -'
+                         ' you should still flag scans you don\'t want to image or part of diagnostics.'
+                         'Default is all available scans')
+parser.add_argument('--bpcal_scan_selection', dest='bpcal_scan_selection',
+                    default="",
+                    help='bpcal scans to use while calibrating (note not applying -'
+                         ' you should still flag scans you don\'t want to image or part of diagnostics.'
+                         'Default is all available scans')
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
 parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", action="store_true",
@@ -376,6 +386,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "refant": REFANT,
             "solint": args.time_sol_interval,
             "combine": "",
+            "scan": args.bpcal_scan_selection,
             "minsnr": 3,
             "minblperant": 4,
             "gaintype": "K",
@@ -411,6 +422,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "gaintype": "G",
             "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
             ##"spw": "0:1.3~1.5GHz",
+            "scan": args.gaincal_scan_selection,
             "gaintable": ["%s:output" % ct for ct in [K0]],
             "gainfield": [FDB[BPCALIBRATOR]],
             "interp":["nearest"],
@@ -470,6 +482,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "gainfield": [",".join([FDB[BPCALIBRATOR]])],
             "interp": ["linear,linear"],
             ##"spw": "0:1.3~1.5GHz",
+            "scan": args.gaincal_scan_selection,
             "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
             "append": True,
             "refant": REFANT,
@@ -509,6 +522,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                                                                           DO_USE_GAINCALIBRATOR_DELAY) else
                               ",".join([FDB[a] for a in ALTCAL]),
                              ],
+                "scan": args.gaincal_scan_selection,
                 "interp":["linear,linear", "nearest"],
                 "append": True,
                 "refant": REFANT,
@@ -563,6 +577,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                     ",".join([FDB[a] for a in ALTCAL]),
                     FDB[BPCALIBRATOR],
                     FDB[BPCALIBRATOR]],
+                "scan": args.gaincal_scan_selection,
                 "interp":["linear,linear","nearest"],
                 "refant": REFANT,
             },
