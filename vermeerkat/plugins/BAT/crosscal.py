@@ -71,6 +71,15 @@ parser.add_argument('--rolloff_flags', dest='rolloff_flags',
                     help='Frequency ranges (as per casa flagdata SPW documentation) to apply'
                          ' flags to prior to calibration. Defaults good for MK wideband L-band,'
                          ' need to be tweeked for UHF band or narrowband modes')
+parser.add_argument('--firstpass_flagging_strategy', dest='firstpass_flagging_strategy',
+                    defailt='mk_rfi_flagging_calibrator_fields_firstpass.yaml',
+                    help='Flagging strategy to use for first pass calibrator flagging')
+parser.add_argument('--secondpass_flagging_strategy', dest='secondpass_flagging_strategy',
+                    defailt='mk_rfi_flagging_calibrator_fields_secondpass.yaml',
+                    help='Flagging strategy to use for first pass calibrator flagging')
+parser.add_argument('--target_flagging_strategy', dest='target_flagging_strategy',
+                    defailt='mk_rfi_flagging_target_fields_firstpass.yaml',
+                    help='Flagging strategy to use for target flagging')
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
 parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", action="store_true",
@@ -78,6 +87,7 @@ parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", act
 parser.add_argument("--dont_prompt", dest="dont_prompt",
                     action="store_true",
                     help="Don't prompt the user for confirmation of parameters")
+
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -912,17 +922,17 @@ def define_steps():
     for a in FLAGANT:
         STEPS += addmanualflags(recipe, "Pointing issue {}".format(a), antenna=a, spw="", scan="", uvrange="", field="")
     if not args.skip_prelim_flagging:
-        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy="mk_rfi_flagging_calibrator_fields_firstpass.yaml", on_corr_residuals=False, dc="DATA")
+        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy=args.firstpass_flagging_strategy, on_corr_residuals=False, dc="DATA")
     if not args.skip_prelim_1GC:
         STEPS += do_1GC(recipe, label="prelim", do_predict=True)
     if not args.skip_final_flagging:
-        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass2", exec_strategy="mk_rfi_flagging_calibrator_fields_secondpass.yaml", on_corr_residuals=True, dc="CORRECTED_DATA")
+        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass2", exec_strategy=args.secondpass_flagging_strategy, on_corr_residuals=True, dc="CORRECTED_DATA")
     if not args.skip_final_1GC:
         STEPS += do_1GC(recipe, label="second_round", do_predict=False, do_apply_target=False)
     if not args.skip_transfer_to_targets:
         STEPS += do_1GC(recipe, label="apply_only", do_predict=False, do_apply_target=True, applyonly=True)
     if not args.skip_flag_targets:
-        STEPS += rfiflag_data(do_flag_targets=True, steplabel="flagfinal", exec_strategy="mk_rfi_flagging_target_fields_firstpass.yaml", on_corr_residuals=False, dc="CORRECTED_DATA")
+        STEPS += rfiflag_data(do_flag_targets=True, steplabel="flagfinal", exec_strategy=args.target_flagging_strategy, on_corr_residuals=False, dc="CORRECTED_DATA")
     if not args.skip_final_split:
         STEPS += finalize_and_split()
 
