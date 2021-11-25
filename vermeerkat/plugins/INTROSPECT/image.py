@@ -92,18 +92,7 @@ with tbl(os.path.join(MSDIR, DATASET)+"::FIELD", ack=False) as t:
     field_names = t.getcol("NAME")
     FDB = {fn: str(fni) for fni, fn in enumerate(field_names)}
 
-def __merge_input():
-    mod_path = os.path.dirname(vermeerkat.__file__)
-    data_dir = os.path.join(mod_path, "data", "input")
-    shutil.copytree(data_dir, INPUT)
-
-if not os.path.exists(INPUT):
-    __merge_input()
-elif os.path.isdir(INPUT):
-    shutil.rmtree(INPUT)
-    __merge_input()
-else:
-    raise RuntimeError("A file called {} already exists, but is not a input directory".format(INPUT))
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt)
 
 TARGET = [f[0] if isinstance(f, list) else f for f in args.target_field]
 if len(TARGET) < 1: raise ValueError("No target specified")
@@ -149,19 +138,7 @@ for cmd in map(lambda x: x.groupdict(), calrecipe):
     else:
         raise ValueError("Unknown step in recipe")
 
-try:
-    input = raw_input
-except NameError:
-    pass
-
-while not args.dont_prompt:
-    r = input("Is this configuration correct? (Y/N) >> ").lower()
-    if r == "y":
-        break
-    elif r == "n":
-        sys.exit(0)
-    else:
-        continue
+vermeerkat.prompt(dont_prompt=args.dont_prompt)
 
 stimela.register_globals()
 recipe = stimela.Recipe('MeerKAT: INTROSPECT selfcal pipeline',

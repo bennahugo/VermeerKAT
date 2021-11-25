@@ -97,18 +97,7 @@ def flistr():
         vermeerkat.log.info("\t '{0:s}' index {1:s}".format(f, FDB[f]))
     sys.exit(0)
 
-def __merge_input():
-    mod_path = os.path.dirname(vermeerkat.__file__)
-    data_dir = os.path.join(mod_path, "data", "input")
-    shutil.copytree(data_dir, INPUT)
-
-if not os.path.exists(INPUT):
-    __merge_input()
-elif os.path.isdir(INPUT):
-    shutil.rmtree(INPUT)
-    __merge_input()
-else:
-    raise RuntimeError("A file called {} already exists, but is not a input directory".format(INPUT))
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt)
 
 vermeerkat.log.info("Time invariant solution time interval: {0:s}".format(args.time_sol_interval))
 vermeerkat.log.info("Frequency invariant solution frequency interval: {0:s}".format(args.freq_sol_interval))
@@ -163,19 +152,7 @@ for f in FDB:
         " selected as 'TARGET'" if f in TARGET else
         " not selected"))
 
-try:
-    input = raw_input
-except NameError:
-    pass
-
-while not args.dont_prompt:
-    r = input("Is this configuration correct? (Y/N) >> ").lower()
-    if r == "y":
-        break
-    elif r == "n":
-        sys.exit(0)
-    else:
-        continue
+vermeerkat.prompt(dont_prompt=args.dont_prompt)
 
 stimela.register_globals()
 recipe = stimela.Recipe('MEERKAT: basic transfer calibration',

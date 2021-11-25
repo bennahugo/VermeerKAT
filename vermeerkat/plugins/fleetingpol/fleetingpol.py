@@ -6,6 +6,7 @@ import os
 from collections import OrderedDict
 from . import diagnostics as dgn
 from vermeerkat import log
+import vermeerkat
 import argparse
 import sys
 
@@ -65,6 +66,8 @@ for pc in args.polcal_field:
 
 assert len(args.bandpass_field) >= 1, "Need one or more bandpass fields"
 assert len(args.polcal_field) >= 1, "Need one ore more polarized fields"
+
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt)
 
 delay_calibrators = [field_list[fk] for fk in field_list.keys()]
 
@@ -145,19 +148,8 @@ for fi, f in enumerate([field_list[fk] for fk in field_list.keys()]):
     label = " (BP)" if f in args.bandpass_field else " (POL)" if f in args.polcal_field else ""
     log.info("\t %d: %s%s" % (fi, f, label))
 
-try:
-    input = raw_input
-except NameError:
-    pass
+vermeerkat.prompt(dont_prompt=args.dont_prompt)
 
-while not args.dont_prompt:
-    r = input("Is this configuration correct? (Y/N) >> ").lower()
-    if r == "y":
-        break
-    elif r == "n":
-        sys.exit(0)
-    else:
-        continue
 stimela.register_globals()
 
 recipe = stimela.Recipe('MEERKAT FleetingPol: Interferometric boresight polarization calibration',
