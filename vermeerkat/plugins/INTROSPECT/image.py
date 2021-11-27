@@ -74,6 +74,10 @@ parser.add_argument("--cubical_split_DI_bandwidth", dest="cubical_split_DI_bandw
 parser.add_argument("--dont_prompt", dest="dont_prompt", 
                     action="store_true",
                     help="Don't prompt the user for confirmation of parameters")
+parser.add_argument("--dont_reinitialize_input_dir", dest="dont_reinitialize_input_dir",
+                    action="store_true",
+                    help="Don't reinitialize the input directory from scratch. Will attempt to just fill it with"
+                         " the necessary files.")
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -92,7 +96,7 @@ with tbl(os.path.join(MSDIR, DATASET)+"::FIELD", ack=False) as t:
     field_names = t.getcol("NAME")
     FDB = {fn: str(fni) for fni, fn in enumerate(field_names)}
 
-vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt)
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt, dont_clean=args.dont_reinitialize_input_dir)
 
 TARGET = [f[0] if isinstance(f, list) else f for f in args.target_field]
 if len(TARGET) < 1: raise ValueError("No target specified")
@@ -138,7 +142,9 @@ for cmd in map(lambda x: x.groupdict(), calrecipe):
     else:
         raise ValueError("Unknown step in recipe")
 
-vermeerkat.prompt(dont_prompt=args.dont_prompt)
+if not vermeerkat.prompt(dont_prompt=args.dont_prompt):
+    vermeerkat.log.info("Aborted per user request")
+    sys.exit(1)
 
 stimela.register_globals()
 recipe = stimela.Recipe('MeerKAT: INTROSPECT selfcal pipeline',

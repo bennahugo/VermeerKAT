@@ -61,7 +61,7 @@ parser.add_argument('--freq_sol_interval', dest='freq_sol_interval', default="in
                     help="Frequency time-invariant solutions interval (default one per observation)")
 parser.add_argument('--clip_delays', dest='clip_delays', default=1, type=float,
                     help="Clip delays above this absolute in nanoseconds")
-parser.add_argument('--cal_model', dest='cal_model', default='pks1934-638.lsm',
+parser.add_argument('--cal_model', dest='cal_model', default='fitted.PKS1934.LBand.wsclean.cat.txt',
                     help="Calibrator apparent sky model (tigger lsm format)")
 parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
@@ -72,10 +72,10 @@ parser.add_argument('--rolloff_flags', dest='rolloff_flags',
                          ' flags to prior to calibration. Defaults good for MK wideband L-band,'
                          ' need to be tweeked for UHF band or narrowband modes')
 parser.add_argument('--firstpass_flagging_strategy', dest='firstpass_flagging_strategy',
-                    defailt='mk_rfi_flagging_calibrator_fields_firstpass.yaml',
+                    default='mk_rfi_flagging_calibrator_fields_firstpass.yaml',
                     help='Flagging strategy to use for first pass calibrator flagging')
 parser.add_argument('--secondpass_flagging_strategy', dest='secondpass_flagging_strategy',
-                    defailt='mk_rfi_flagging_calibrator_fields_secondpass.yaml',
+                    default='mk_rfi_flagging_calibrator_fields_secondpass.yaml',
                     help='Flagging strategy to use for first pass calibrator flagging')
 parser.add_argument('--target_flagging_strategy', dest='target_flagging_strategy',
                     default='mk_rfi_flagging_target_fields_firstpass.yaml',
@@ -97,7 +97,10 @@ parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", act
 parser.add_argument("--dont_prompt", dest="dont_prompt",
                     action="store_true",
                     help="Don't prompt the user for confirmation of parameters")
-
+parser.add_argument("--dont_reinitialize_input_dir", dest="dont_reinitialize_input_dir",
+                    action="store_true",
+                    help="Don't reinitialize the input directory from scratch. Will attempt to just fill it with"
+                         " the necessary files.")
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -123,7 +126,7 @@ def flistr():
         vermeerkat.log.info("\t '{0:s}' index {1:s}".format(f, FDB[f]))
     sys.exit(0)
 
-vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt)
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt, dont_clean=args.dont_reinitialize_input_dir)
 
 vermeerkat.log.info("Time invariant solution time interval: {0:s}".format(args.time_sol_interval))
 vermeerkat.log.info("Frequency invariant solution frequency interval: {0:s}".format(args.freq_sol_interval))
@@ -178,7 +181,9 @@ for f in FDB:
         " selected as 'TARGET'" if f in TARGET else
         " not selected"))
 
-vermeerkat.prompt(dont_prompt=args.dont_prompt)
+if not vermeerkat.prompt(dont_prompt=args.dont_prompt):
+    vermeerkat.log.info("Aborted per user request")
+    sys.exit(1)
 
 stimela.register_globals()
 recipe = stimela.Recipe('MEERKAT: basic transfer calibration',

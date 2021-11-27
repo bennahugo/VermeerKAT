@@ -40,7 +40,10 @@ parser.add_argument("--polarized_cal_scans_solve", dest="polarized_cal_scans_sol
 parser.add_argument("--unpolarized_cal_scans_solve", dest="unpolarized_cal_scans_solve",
                     default="",
                     help="Scans to use when solving for leakage solutions. Default all.")
-
+parser.add_argument("--dont_reinitialize_input_dir", dest="dont_reinitialize_input_dir",
+                    action="store_true",
+                    help="Don't reinitialize the input directory from scratch. Will attempt to just fill it with"
+                         " the necessary files.")
 
 args = parser.parse_args(sys.argv[2:])
 INPUT = args.input_directory
@@ -74,7 +77,7 @@ for pc in args.polcal_field:
 assert len(args.bandpass_field) >= 1, "Need one or more bandpass fields"
 assert len(args.polcal_field) >= 1, "Need one ore more polarized fields"
 
-vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt)
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt, dont_clean=args.dont_reinitialize_input_dir)
 
 delay_calibrators = [field_list[fk] for fk in field_list.keys()]
 
@@ -155,7 +158,9 @@ for fi, f in enumerate([field_list[fk] for fk in field_list.keys()]):
     label = " (BP)" if f in args.bandpass_field else " (POL)" if f in args.polcal_field else ""
     log.info("\t %d: %s%s" % (fi, f, label))
 
-vermeerkat.prompt(dont_prompt=args.dont_prompt)
+if not vermeerkat.prompt(dont_prompt=args.dont_prompt):
+    vermeerkat.log.info("Aborted per user request")
+    sys.exit(1)
 
 stimela.register_globals()
 

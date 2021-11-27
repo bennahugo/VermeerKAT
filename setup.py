@@ -21,7 +21,7 @@ requirements = [
  'curses-menu>=0.5.0',
  'lmfit>=0.9.8',
  'GPy>=1.9.2',
- 'npyscreen @ git+https://github.com/bennahugo/npyscreen.git@04187cb7a4dfbc488311afe6e6ebb9b4876e15d1',
+ 'npyscreen @ git+https://github.com/bennahugo/npyscreen.git@6bff9d3b65879dc',
 ]
 
 PACKAGE_NAME = 'vermeerkat'
