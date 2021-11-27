@@ -364,18 +364,11 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             },
             input=INPUT, output=OUTPUT, label="backup_flags_prior_1gc_%s" % label)
 
-    recipe.add("cab/simulator", "predict_fluxcalibrator_%s" % label, {
-           "skymodel": args.cal_model, # we are using 1934-638 as flux scale reference
-           "msname": ZEROGEN_DATA,
-           "threads": 24,
-           "mode": "simulate",
-           "column": "MODEL_DATA",
-           "Ejones": False, # first bandpass calibration is normal calibration then we absorb coefficients into another table
-           "beam-files-pattern": "meerkat_pb_jones_cube_95channels_$(xy)_$(reim).fits",
-           "beam-l-axis": "X",
-           "beam-m-axis": "-Y", #[OMS] flipped in code: southern hemisphere
-           "parallactic-angle-rotation": True,
-           "field-id": int(FDB[BPCALIBRATOR]),
+    recipe.add("cab/crystalball", "predict_fluxcalibrator_%s" % label, {
+           "ms": ZEROGEN_DATA,
+           "sky-model": args.cal_model,
+           "memory-fraction": 0.1,
+           "field": FDB[BPCALIBRATOR]
     },
     input=INPUT, output=OUTPUT, label="set_flux_reference_%s" % label)
 
