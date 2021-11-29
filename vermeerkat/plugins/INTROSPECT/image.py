@@ -52,9 +52,9 @@ parser.add_argument("--recipe", dest="recipe",
                          "input column and output column (need not exist). "
                          "Available options for maskimg are the same as im, but with a first argument a mask sigma. "
                          "(default: '{}')".format(default_recipe))
-parser.add_argument("--npix", dest="npix", default=8192,
+parser.add_argument("--npix", dest="npix", default=8192, type=int,
                     help="Number of pixels to use in imaging (default 8192)")
-parser.add_argument("--cellsize", dest="cellsize", default=1.3,
+parser.add_argument("--cellsize", dest="cellsize", default=1.3, type=float,
                     help="Cellsize to use in imaging (default 1.3asec)")
 parser.add_argument("--cal_briggs", dest="cal_briggs", default=-0.6,
                     help="Briggs robust to use during calibration (default -0.6)")
