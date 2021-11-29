@@ -6,6 +6,7 @@ import os
 from collections import OrderedDict
 from . import diagnostics as dgn
 from vermeerkat import log
+import vermeerkat
 import argparse
 import sys
 
@@ -33,6 +34,16 @@ parser.add_argument("--transfer_to_existing", dest="transfer_to_existing", type=
 parser.add_argument("--dont_prompt", dest="dont_prompt", 
                     action="store_true",
                     help="Don't prompt the user for confirmation of parameters")
+parser.add_argument("--polarized_cal_scans_solve", dest="polarized_cal_scans_solve",
+                    default="",
+                    help="Scans to use when solving for polarization crosshand solutions. Default all.")
+parser.add_argument("--unpolarized_cal_scans_solve", dest="unpolarized_cal_scans_solve",
+                    default="",
+                    help="Scans to use when solving for leakage solutions. Default all.")
+parser.add_argument("--dont_reinitialize_input_dir", dest="dont_reinitialize_input_dir",
+                    action="store_true",
+                    help="Don't reinitialize the input directory from scratch. Will attempt to just fill it with"
+                         " the necessary files.")
 
 args = parser.parse_args(sys.argv[2:])
 INPUT = args.input_directory
@@ -65,6 +76,8 @@ for pc in args.polcal_field:
 
 assert len(args.bandpass_field) >= 1, "Need one or more bandpass fields"
 assert len(args.polcal_field) >= 1, "Need one ore more polarized fields"
+
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt, dont_clean=args.dont_reinitialize_input_dir)
 
 delay_calibrators = [field_list[fk] for fk in field_list.keys()]
 
@@ -145,19 +158,10 @@ for fi, f in enumerate([field_list[fk] for fk in field_list.keys()]):
     label = " (BP)" if f in args.bandpass_field else " (POL)" if f in args.polcal_field else ""
     log.info("\t %d: %s%s" % (fi, f, label))
 
-try:
-    input = raw_input
-except NameError:
-    pass
+if not vermeerkat.prompt(dont_prompt=args.dont_prompt):
+    vermeerkat.log.info("Aborted per user request")
+    sys.exit(1)
 
-while not args.dont_prompt:
-    r = input("Is this configuration correct? (Y/N) >> ").lower()
-    if r == "y":
-        break
-    elif r == "n":
-        sys.exit(0)
-    else:
-        continue
 stimela.register_globals()
 
 recipe = stimela.Recipe('MEERKAT FleetingPol: Interferometric boresight polarization calibration',
@@ -237,6 +241,7 @@ recipe.add("cab/casa47_gaincal", "crosshand_delay", {
         "solint": timegain_solint, #one per scan to track movement of the mean
         "combine": "",
         "parang": True,
+        "scan": args.polarized_cal_scans_solve,
         "gaintype": "KCROSS",
 },
 input=INPUT, output=OUTPUT, label="crosshand_delay")
@@ -258,6 +263,7 @@ recipe.add("cab/casa47_polcal", "crosshand_phase_ref", {
         "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
+        "scan": args.polarized_cal_scans_solve,
         "gaintable": ["%s:output" % ct for ct in [KX]],
 },
 input=INPUT, output=OUTPUT, label="crosshand_phase_ref")
@@ -272,6 +278,7 @@ recipe.add("cab/casa47_polcal", "crosshand_phase_freq", {
         "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
+        "scan": args.polarized_cal_scans_solve,
         "gaintable": ["%s:output" % ct for ct in [KX, Xref]],
 },
 input=INPUT, output=OUTPUT, label="crosshand_phase_freq")
@@ -291,6 +298,7 @@ recipe.add("cab/casa47_polcal", "leakage_ref", {
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
         "refant": REFANT,
         #"spw": "0:1.0~1.1ghz",
+        "scan": args.unpolarized_cal_scans_solve,
         "gaintable": ["%s:output" % ct for ct in [KX, Xref, Xf]],
 },
 input=INPUT, output=OUTPUT, label="leakage_ref")
@@ -305,6 +313,7 @@ recipe.add("cab/casa47_polcal", "leakage_freq", {
         "preavg": -1.0,
         "refant": REFANT,
         "uvrange": uv_cutoff, # EXCLUDE RFI INFESTATION!
+        "scan": args.unpolarized_cal_scans_solve,
         "gaintable": ["%s:output" % ct for ct in [KX, Xref, Xf, Dref]],
 },
 input=INPUT, output=OUTPUT, label="leakage_freq")

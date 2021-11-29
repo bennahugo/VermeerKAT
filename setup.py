@@ -21,11 +21,11 @@ requirements = [
  'curses-menu>=0.5.0',
  'lmfit>=0.9.8',
  'GPy>=1.9.2',
- 'npyscreen @ git+https://github.com/bennahugo/npyscreen.git@04187cb7a4dfbc488311afe6e6ebb9b4876e15d1',
+ 'npyscreen @ git+https://github.com/bennahugo/npyscreen.git@6bff9d3b65879dc',
 ]
 
 PACKAGE_NAME = 'vermeerkat'
-__version__ = '2.0.0'
+__version__ = '2.1.0'
 
 setup(name = PACKAGE_NAME,
       version = __version__,
@@ -36,6 +36,7 @@ setup(name = PACKAGE_NAME,
       packages=[PACKAGE_NAME],
       install_requires = requirements,
       include_package_data = True,
+      python_requires=">=3.6",
       entry_points={
           'console_scripts': ['vermeerkat=vermeerkat.bin.vermeerkat:main'],
       },

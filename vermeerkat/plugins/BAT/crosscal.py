@@ -61,10 +61,35 @@ parser.add_argument('--freq_sol_interval', dest='freq_sol_interval', default="in
                     help="Frequency time-invariant solutions interval (default one per observation)")
 parser.add_argument('--clip_delays', dest='clip_delays', default=1, type=float,
                     help="Clip delays above this absolute in nanoseconds")
-parser.add_argument('--cal_model', dest='cal_model', default='pks1934-638.lsm',
+parser.add_argument('--cal_model', dest='cal_model', default='fitted.PKS1934.LBand.wsclean.cat.txt',
                     help="Calibrator apparent sky model (tigger lsm format)")
 parser.add_argument('--ref_ant', dest='ref_ant', default='m037',
                     help="Reference antenna to use throughout")
+parser.add_argument('--rolloff_flags', dest='rolloff_flags',
+                    #band-rolloffs and Milkyway HI line
+                    default='*:850~980MHz,*:1658~1800MHz,*:1419.8~1421.3MHz',
+                    help='Frequency ranges (as per casa flagdata SPW documentation) to apply'
+                         ' flags to prior to calibration. Defaults good for MK wideband L-band,'
+                         ' need to be tweeked for UHF band or narrowband modes')
+parser.add_argument('--firstpass_flagging_strategy', dest='firstpass_flagging_strategy',
+                    default='mk_rfi_flagging_calibrator_fields_firstpass.yaml',
+                    help='Flagging strategy to use for first pass calibrator flagging')
+parser.add_argument('--secondpass_flagging_strategy', dest='secondpass_flagging_strategy',
+                    default='mk_rfi_flagging_calibrator_fields_secondpass.yaml',
+                    help='Flagging strategy to use for first pass calibrator flagging')
+parser.add_argument('--target_flagging_strategy', dest='target_flagging_strategy',
+                    default='mk_rfi_flagging_target_fields_firstpass.yaml',
+                    help='Flagging strategy to use for target flagging')
+parser.add_argument('--gaincal_scan_selection', dest='gaincal_scan_selection',
+                    default="",
+                    help='Gaincal and altcal scans to use while calibrating (note not applying -'
+                         ' you should still flag scans you don\'t want to image or part of diagnostics.'
+                         'Default is all available scans')
+parser.add_argument('--bpcal_scan_selection', dest='bpcal_scan_selection',
+                    default="",
+                    help='bpcal scans to use while calibrating (note not applying -'
+                         ' you should still flag scans you don\'t want to image or part of diagnostics.'
+                         'Default is all available scans')
 parser.add_argument("--containerization", dest="containerization", default="docker",
                     help="Containerization technology to use. See your stimela installation for options")
 parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", action="store_true",
@@ -72,6 +97,10 @@ parser.add_argument("--image_gaincalibrators", dest="image_gaincalibrators", act
 parser.add_argument("--dont_prompt", dest="dont_prompt",
                     action="store_true",
                     help="Don't prompt the user for confirmation of parameters")
+parser.add_argument("--dont_reinitialize_input_dir", dest="dont_reinitialize_input_dir",
+                    action="store_true",
+                    help="Don't reinitialize the input directory from scratch. Will attempt to just fill it with"
+                         " the necessary files.")
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -97,18 +126,7 @@ def flistr():
         vermeerkat.log.info("\t '{0:s}' index {1:s}".format(f, FDB[f]))
     sys.exit(0)
 
-def __merge_input():
-    mod_path = os.path.dirname(vermeerkat.__file__)
-    data_dir = os.path.join(mod_path, "data", "input")
-    shutil.copytree(data_dir, INPUT)
-
-if not os.path.exists(INPUT):
-    __merge_input()
-elif os.path.isdir(INPUT):
-    shutil.rmtree(INPUT)
-    __merge_input()
-else:
-    raise RuntimeError("A file called {} already exists, but is not a input directory".format(INPUT))
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt, dont_clean=args.dont_reinitialize_input_dir)
 
 vermeerkat.log.info("Time invariant solution time interval: {0:s}".format(args.time_sol_interval))
 vermeerkat.log.info("Frequency invariant solution frequency interval: {0:s}".format(args.freq_sol_interval))
@@ -163,19 +181,9 @@ for f in FDB:
         " selected as 'TARGET'" if f in TARGET else
         " not selected"))
 
-try:
-    input = raw_input
-except NameError:
-    pass
-
-while not args.dont_prompt:
-    r = input("Is this configuration correct? (Y/N) >> ").lower()
-    if r == "y":
-        break
-    elif r == "n":
-        sys.exit(0)
-    else:
-        continue
+if not vermeerkat.prompt(dont_prompt=args.dont_prompt):
+    vermeerkat.log.info("Aborted per user request")
+    sys.exit(1)
 
 stimela.register_globals()
 recipe = stimela.Recipe('MEERKAT: basic transfer calibration',
@@ -238,7 +246,7 @@ def prepare_data():
         recipe.add("cab/casa_flagdata", "flag_rolloff", {
                    "vis": ZEROGEN_DATA,
                    "mode": "manual",
-                   "spw": "*:850~980MHz,*:1658~1800MHz,*:1419.8~1421.3MHz", #band-rolloffs and Milkyway HI line
+                   "spw": args.rolloff_flags
             },
             input=INPUT, output=OUTPUT, label="flagging_rolloff")
 
@@ -361,18 +369,11 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             },
             input=INPUT, output=OUTPUT, label="backup_flags_prior_1gc_%s" % label)
 
-    recipe.add("cab/simulator", "predict_fluxcalibrator_%s" % label, {
-           "skymodel": args.cal_model, # we are using 1934-638 as flux scale reference
-           "msname": ZEROGEN_DATA,
-           "threads": 24,
-           "mode": "simulate",
-           "column": "MODEL_DATA",
-           "Ejones": False, # first bandpass calibration is normal calibration then we absorb coefficients into another table
-           "beam-files-pattern": "meerkat_pb_jones_cube_95channels_$(xy)_$(reim).fits",
-           "beam-l-axis": "X",
-           "beam-m-axis": "-Y", #[OMS] flipped in code: southern hemisphere
-           "parallactic-angle-rotation": True,
-           "field-id": int(FDB[BPCALIBRATOR]),
+    recipe.add("cab/crystalball", "predict_fluxcalibrator_%s" % label, {
+           "ms": ZEROGEN_DATA,
+           "sky-model": args.cal_model,
+           "memory-fraction": 0.1,
+           "field": FDB[BPCALIBRATOR]
     },
     input=INPUT, output=OUTPUT, label="set_flux_reference_%s" % label)
 
@@ -383,6 +384,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "refant": REFANT,
             "solint": args.time_sol_interval,
             "combine": "",
+            "scan": args.bpcal_scan_selection,
             "minsnr": 3,
             "minblperant": 4,
             "gaintype": "K",
@@ -418,6 +420,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "gaintype": "G",
             "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
             ##"spw": "0:1.3~1.5GHz",
+            "scan": args.gaincal_scan_selection,
             "gaintable": ["%s:output" % ct for ct in [K0]],
             "gainfield": [FDB[BPCALIBRATOR]],
             "interp":["nearest"],
@@ -477,6 +480,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
             "gainfield": [",".join([FDB[BPCALIBRATOR]])],
             "interp": ["linear,linear"],
             ##"spw": "0:1.3~1.5GHz",
+            "scan": args.gaincal_scan_selection,
             "uvrange": "150~10000m", # EXCLUDE RFI INFESTATION!
             "append": True,
             "refant": REFANT,
@@ -516,6 +520,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                                                                           DO_USE_GAINCALIBRATOR_DELAY) else
                               ",".join([FDB[a] for a in ALTCAL]),
                              ],
+                "scan": args.gaincal_scan_selection,
                 "interp":["linear,linear", "nearest"],
                 "append": True,
                 "refant": REFANT,
@@ -570,6 +575,7 @@ def do_1GC(recipe, label="prelim", do_apply_target=False, do_predict=True, apply
                     ",".join([FDB[a] for a in ALTCAL]),
                     FDB[BPCALIBRATOR],
                     FDB[BPCALIBRATOR]],
+                "scan": args.gaincal_scan_selection,
                 "interp":["linear,linear","nearest"],
                 "refant": REFANT,
             },
@@ -929,17 +935,17 @@ def define_steps():
     for a in FLAGANT:
         STEPS += addmanualflags(recipe, "Pointing issue {}".format(a), antenna=a, spw="", scan="", uvrange="", field="")
     if not args.skip_prelim_flagging:
-        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy="mk_rfi_flagging_calibrator_fields_firstpass.yaml", on_corr_residuals=False, dc="DATA")
+        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass1", exec_strategy=args.firstpass_flagging_strategy, on_corr_residuals=False, dc="DATA")
     if not args.skip_prelim_1GC:
         STEPS += do_1GC(recipe, label="prelim", do_predict=True)
     if not args.skip_final_flagging:
-        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass2", exec_strategy="mk_rfi_flagging_calibrator_fields_secondpass.yaml", on_corr_residuals=True, dc="CORRECTED_DATA")
+        STEPS += rfiflag_data(do_flag_targets=False, steplabel="flagpass2", exec_strategy=args.secondpass_flagging_strategy, on_corr_residuals=True, dc="CORRECTED_DATA")
     if not args.skip_final_1GC:
         STEPS += do_1GC(recipe, label="second_round", do_predict=False, do_apply_target=False)
     if not args.skip_transfer_to_targets:
         STEPS += do_1GC(recipe, label="apply_only", do_predict=False, do_apply_target=True, applyonly=True)
     if not args.skip_flag_targets:
-        STEPS += rfiflag_data(do_flag_targets=True, steplabel="flagfinal", exec_strategy="mk_rfi_flagging_target_fields_firstpass.yaml", on_corr_residuals=False, dc="CORRECTED_DATA")
+        STEPS += rfiflag_data(do_flag_targets=True, steplabel="flagfinal", exec_strategy=args.target_flagging_strategy, on_corr_residuals=False, dc="CORRECTED_DATA")
     if not args.skip_final_split:
         STEPS += finalize_and_split()
 

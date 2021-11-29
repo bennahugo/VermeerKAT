@@ -52,9 +52,9 @@ parser.add_argument("--recipe", dest="recipe",
                          "input column and output column (need not exist). "
                          "Available options for maskimg are the same as im, but with a first argument a mask sigma. "
                          "(default: '{}')".format(default_recipe))
-parser.add_argument("--npix", dest="npix", default=8192,
+parser.add_argument("--npix", dest="npix", default=8192, type=int,
                     help="Number of pixels to use in imaging (default 8192)")
-parser.add_argument("--cellsize", dest="cellsize", default=1.3,
+parser.add_argument("--cellsize", dest="cellsize", default=1.3, type=float,
                     help="Cellsize to use in imaging (default 1.3asec)")
 parser.add_argument("--cal_briggs", dest="cal_briggs", default=-0.6,
                     help="Briggs robust to use during calibration (default -0.6)")
@@ -74,6 +74,10 @@ parser.add_argument("--cubical_split_DI_bandwidth", dest="cubical_split_DI_bandw
 parser.add_argument("--dont_prompt", dest="dont_prompt", 
                     action="store_true",
                     help="Don't prompt the user for confirmation of parameters")
+parser.add_argument("--dont_reinitialize_input_dir", dest="dont_reinitialize_input_dir",
+                    action="store_true",
+                    help="Don't reinitialize the input directory from scratch. Will attempt to just fill it with"
+                         " the necessary files.")
 
 args = parser.parse_args(sys.argv[2:])
 
@@ -92,18 +96,7 @@ with tbl(os.path.join(MSDIR, DATASET)+"::FIELD", ack=False) as t:
     field_names = t.getcol("NAME")
     FDB = {fn: str(fni) for fni, fn in enumerate(field_names)}
 
-def __merge_input():
-    mod_path = os.path.dirname(vermeerkat.__file__)
-    data_dir = os.path.join(mod_path, "data", "input")
-    shutil.copytree(data_dir, INPUT)
-
-if not os.path.exists(INPUT):
-    __merge_input()
-elif os.path.isdir(INPUT):
-    shutil.rmtree(INPUT)
-    __merge_input()
-else:
-    raise RuntimeError("A file called {} already exists, but is not a input directory".format(INPUT))
+vermeerkat.init_inputdir(INPUT, dont_prompt=args.dont_prompt, dont_clean=args.dont_reinitialize_input_dir)
 
 TARGET = [f[0] if isinstance(f, list) else f for f in args.target_field]
 if len(TARGET) < 1: raise ValueError("No target specified")
@@ -149,19 +142,9 @@ for cmd in map(lambda x: x.groupdict(), calrecipe):
     else:
         raise ValueError("Unknown step in recipe")
 
-try:
-    input = raw_input
-except NameError:
-    pass
-
-while not args.dont_prompt:
-    r = input("Is this configuration correct? (Y/N) >> ").lower()
-    if r == "y":
-        break
-    elif r == "n":
-        sys.exit(0)
-    else:
-        continue
+if not vermeerkat.prompt(dont_prompt=args.dont_prompt):
+    vermeerkat.log.info("Aborted per user request")
+    sys.exit(1)
 
 stimela.register_globals()
 recipe = stimela.Recipe('MeerKAT: INTROSPECT selfcal pipeline',
